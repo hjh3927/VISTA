@@ -22,3 +22,11 @@ TARGET_IMAGE_PATH = os.path.join(OUT_PATH, "target_img")
 CHECKPOINT_PATH = os.path.join(PROJECT_PATH, "pretrained_checkpoint/sam_vit_h_4b8939.pth")
 MODEL_TYPE = "vit_h"
 DEVICE = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+
+#超参数配置
+MIN_AREA = 100
+MAX_ERROR = 1.0
+LINE_THRESHOLD = 1.0
+NUM_ITERS = 100
+LAMBDA1 = 0
+LAMBDA2 = 0.1

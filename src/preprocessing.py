@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from PIL import Image
-import cv2
+
 
 def load_and_resize(image_path: str, target_size: int = 512):
     """
@@ -21,7 +21,6 @@ def save_target_image(image_array, out_dir, file_name):
     """
     将 numpy 图像保存为 PIL 格式图片
     """
-    os.makedirs(out_dir, exist_ok=True)
     img_pil = Image.fromarray(image_array)
     out_file = os.path.join(out_dir, file_name)
     img_pil.save(out_file)

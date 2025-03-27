@@ -3,8 +3,6 @@ import time
 import cv2
 import numpy as np
 from PIL import Image
-import torch
-from torchvision import transforms
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 
 def sam(image_path, masks_path, model_type='vit_h', checkpoint_path='', device='cpu'):
@@ -23,7 +21,6 @@ def sam(image_path, masks_path, model_type='vit_h', checkpoint_path='', device='
     print(f"生成 {len(masks)} 个掩码，耗时 {time.time()-st:.2f} s")
     
     mask_path_list = []
-    os.makedirs(masks_path, exist_ok=True)
     for i, mask in enumerate(masks):
         image_data = np.where(mask['segmentation'], 255, 0).astype(np.uint8)
         mask_img = Image.fromarray(image_data)
@@ -73,7 +70,7 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100):
             if single_region_area <= min_area:
                 print(f"区域面积 {single_region_area} 小于 {min_area}，跳过")
                 continue
-            output_filename = f"{count}_{i}.png"
+            output_filename = f"{count}.png"
             output_file_path = os.path.join(output_path, output_filename)
             Image.fromarray(single_region).save(output_file_path)
             pre_mask_list.append(output_file_path)

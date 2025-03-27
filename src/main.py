@@ -1,11 +1,9 @@
 import os
 import cv2
-import torch
-import time
 import pydiffvg
-from PIL import Image
 
-from config import DATA_PATH, OUT_PATH, ORIGIN_MASKS_PATH, PRE_MASKS_PATH, INIT_SVG_PATH, OPTIM_SVG_PATH, TARGET_IMAGE_PATH, CHECKPOINT_PATH, MODEL_TYPE, DEVICE
+from config import DATA_PATH, OUT_PATH, ORIGIN_MASKS_PATH, PRE_MASKS_PATH, INIT_SVG_PATH, OPTIM_SVG_PATH, TARGET_IMAGE_PATH, CHECKPOINT_PATH
+from config import MODEL_TYPE, DEVICE, MIN_AREA, MAX_ERROR, LINE_THRESHOLD, NUM_ITERS, LAMBDA1, LAMBDA2
 from preprocessing import load_and_resize, save_target_image
 from sam_inference import sam, preprocessing_mask
 from svg_generator import generate_init_svg, svg_optimize
@@ -32,15 +30,15 @@ def main():
     
     # SAM 掩码生成与预处理
     mask_path_list = sam(target_img_path, ORIGIN_MASKS_PATH, model_type=MODEL_TYPE, checkpoint_path=CHECKPOINT_PATH, device=DEVICE)
-    pre_mask_path_list = preprocessing_mask(mask_path_list, PRE_MASKS_PATH, min_area=100)
+    pre_mask_path_list = preprocessing_mask(mask_path_list, PRE_MASKS_PATH, min_area=MIN_AREA)
     
     shapes = []
     shape_groups = []
     # 初始化 SVG
-    shapes, shape_groups = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, out_svg_path=INIT_SVG_PATH, max_error=1.0, line_threshold=1.0)
+    shapes, shape_groups = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, out_svg_path=INIT_SVG_PATH, max_error=MAX_ERROR, line_threshold=LINE_THRESHOLD)
     
     # 优化 SVG
-    svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, num_iters=100, lamda1=0, lamda2=0.1)
+    svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, num_iters=NUM_ITERS, lamda1=LAMBDA1, lamda2=LAMBDA2)
     
     print(f"处理完成，输出目录：{OUT_PATH}")
 

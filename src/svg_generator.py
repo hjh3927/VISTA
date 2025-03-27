@@ -37,8 +37,14 @@ def fit_contour(contour_simple, contour, max_error=1.0, line_threshold=1.0):
                     structured_points.append([P1, P2, P3])
                     i = j
                     break
-        if i >= len(contour_simple)-1:
-            break
+        if i != j :
+            if max_distance <= error :
+                structured_points.append(p2)
+                i = j
+            else :
+                structured_points.append([P1, P2, P3])
+                i = j
+        
     return structured_points
 
 def points_to_path(structured_points, closed=True):
@@ -113,7 +119,6 @@ def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_i
     print("初始化 SVG...")
     st = time.time()
     height, width, _ = target_image.shape
-    os.makedirs(out_svg_path, exist_ok=True)
     i = 0
     for mask_path in pre_mask_path_list:
         mask_image = Image.open(mask_path).convert('L')
@@ -158,7 +163,6 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, num_i
         color_vars.append(group.fill_color)
     optim = torch.optim.Adam(points_vars + color_vars, lr=0.1)
     render = pydiffvg.RenderFunction.apply
-    os.makedirs(svg_out_path, exist_ok=True)
     for iter in range(num_iters):
         optim.zero_grad()
         scene_args = pydiffvg.RenderFunction.serialize_scene(
