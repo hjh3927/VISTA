@@ -32,7 +32,7 @@ def main():
     
     # SAM 掩码生成与预处理
     mask_path_list = sam(target_img_path, ORIGIN_MASKS_PATH, model_type=MODEL_TYPE, checkpoint_path=CHECKPOINT_PATH, device=DEVICE)
-    pre_mask_path_list = preprocessing_mask(mask_path_list, min_area=100)
+    pre_mask_path_list = preprocessing_mask(mask_path_list, PRE_MASKS_PATH, min_area=100)
     
     shapes = []
     shape_groups = []
