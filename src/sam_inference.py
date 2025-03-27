@@ -52,7 +52,6 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100):
     """
     print("预处理掩码...")
     pre_mask_list = []
-    os.makedirs(output_path, exist_ok=True)
     for count, mask_img_path in enumerate(mask_img_list):
         image = cv2.imread(mask_img_path, cv2.IMREAD_GRAYSCALE)
         if image is None:
