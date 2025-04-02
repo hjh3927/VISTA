@@ -41,14 +41,42 @@ def find_background_seed(image):
             return seed
     return (0, 0)
 
-def preprocessing_mask(mask_img_list, output_path, min_area=100):
+
+def compute_iou(mask1, mask2):
+    """
+    计算两个二值掩码之间的交并比（IoU）。
+    
+    参数：
+        mask1 (np.ndarray): 第一个二值掩码，形状为 (height, width)。
+        mask2 (np.ndarray): 第二个二值掩码，形状为 (height, width)。
+        
+    返回：
+        float: 两个掩码之间的交并比（IoU）。
+    """
+    intersection = np.logical_and(mask1, mask2).sum()  # 交集
+    union = np.logical_or(mask1, mask2).sum()  # 并集
+    return intersection / union if union != 0 else 0  # 防止除零
+
+def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0.8):
     """
     预处理二值掩码：
       1. 使用 floodFill 填充外部背景，去除孔洞。
       2. 分割连通区域并保存有效的掩码。
+      3. 移除交并比高于阈值的重复掩码。
+    
+    参数：
+        mask_img_list (list): 输入的掩码图像路径列表。
+        output_path (str): 输出目录路径。
+        min_area (int): 最小有效区域面积，面积小于该值的掩码将被忽略。
+        iou_threshold (float): 交并比阈值，高于该阈值的掩码将被认为是重复的并被移除。
+    
+    返回：
+        list: 处理后的掩码路径列表。
     """
     print("预处理掩码...")
     pre_mask_list = []
+    processed_masks = []  # 用于保存处理后的掩码图像
+
     for count, mask_img_path in enumerate(mask_img_list):
         image = cv2.imread(mask_img_path, cv2.IMREAD_GRAYSCALE)
         if image is None:
@@ -61,21 +89,34 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100):
         cv2.floodFill(flood_fill_image, mask, seed, 255)
         filled_image = cv2.bitwise_or(image, cv2.bitwise_not(flood_fill_image))
         num_labels, labels = cv2.connectedComponents(filled_image)
-        if num_labels > 2:
-            print("-----检测到多个区域，跳过-----")
-            continue
+
         for i in range(1, num_labels):
             single_region = np.where(labels == i, 255, 0).astype(np.uint8)
             single_region_area = (single_region == 255).sum().item()
             if single_region_area <= min_area:
                 print(f"区域面积 {single_region_area} 小于 {min_area}，跳过")
                 continue
-            output_filename = f"{count}.png"
-            output_file_path = os.path.join(output_path, output_filename)
-            Image.fromarray(single_region).save(output_file_path)
-            pre_mask_list.append(output_file_path)
-    pre_mask_list = sort_masks_by_size(pre_mask_list)
-    return pre_mask_list
+
+            # 检查当前掩码与已处理掩码之间的交并比，去除重复掩码
+            is_duplicate = False
+            for existing_mask in processed_masks:
+                iou = compute_iou(single_region, existing_mask)
+                if iou > iou_threshold:
+                    is_duplicate = True
+                    print(f"掩码 {count}_{i} 与现有掩码重复，交并比为 {iou:.4f}，被跳过")
+                    break
+
+            if not is_duplicate:
+                # 保存新的有效掩码
+                output_filename = f"{count}_{i}.png"
+                output_file_path = os.path.join(output_path, output_filename)
+                Image.fromarray(single_region).save(output_file_path)
+                pre_mask_list.append(output_file_path)
+                processed_masks.append(single_region)  # 保存已处理的掩码
+
+    final_mask_list = sort_masks_by_size(pre_mask_list)
+    return final_mask_list
+
 
 def sort_masks_by_size(mask_list):
     """

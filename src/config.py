@@ -6,7 +6,7 @@ import time
 PROJECT_PATH = '/home/hjh/repository/AIVbyPS'
 
 # 数据和输出路径
-FILE_NAME = "2Dhouse.jpg"
+FILE_NAME = "test.jpg"
 DATA_PATH = os.path.join(PROJECT_PATH, "data/demo", FILE_NAME)
 T = time.time()
 OUT_PATH = os.path.join(PROJECT_PATH, "out", f"{FILE_NAME}-{int(T)%20}")
@@ -24,9 +24,10 @@ MODEL_TYPE = "vit_h"
 DEVICE = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
 #超参数配置
-MIN_AREA = 100
+MIN_AREA = 10
 MAX_ERROR = 1.0
 LINE_THRESHOLD = 1.0
-NUM_ITERS = 100
+LEARNING_RATE = 0.1
+NUM_ITERS = 1000
 LAMBDA1 = 0
 LAMBDA2 = 0.1

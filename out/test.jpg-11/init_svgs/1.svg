@@ -1,8 +1,0 @@
-<?xml version="1.0" ?>
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="512" height="431">
-  <defs/>
-  <g>
-    <path d="M 0.0 2.0 L 0.0 430.0 L 511.0 430.0 L 511.0 0.0 C 341.0 -1.487894892692566 171.0 3.117079019546509 0.0 2.0" stroke-width="2.0" fill="rgb(205, 194, 193)" opacity="1.0" stroke="rgb(0, 0, 0)" stroke-opacity="0.0" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M 209.0 227.0 L 209.0 402.0 L 302.0 402.0 L 303.0 228.0 C 272.0 223.65928649902344 241.0 226.810791015625 209.0 227.0" stroke-width="2.0" fill="rgb(158, 58, 35)" opacity="1.0" stroke="rgb(0, 0, 0)" stroke-opacity="0.0" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
-</svg>

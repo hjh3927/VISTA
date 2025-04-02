@@ -10,10 +10,10 @@ def load_and_resize(image_path: str, target_size: int = 512):
     print("预处理目标图像...")
     image = Image.open(image_path).convert("RGB") 
     w, h = image.size
-    
+
     scale = target_size / max(w, h)
-    new_size = (int(w*scale), int(h*scale))    
-    resized = image.resize(new_size, Image.Resampling.LANCZOS)
+    target_size = (int(w*scale), int(h*scale))    
+    resized = image.resize(target_size, Image.Resampling.LANCZOS)
     
     return np.array(resized)
   

@@ -75,6 +75,7 @@ def points_to_path(structured_points, closed=True):
     path = pydiffvg.Path(
         num_control_points=torch.tensor(num_control_points),
         points=torch.stack(points),
+        stroke_width=torch.tensor(1.0),
         is_closed=closed
     )
     return path
@@ -133,36 +134,56 @@ def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_i
         group = pydiffvg.ShapeGroup(
             shape_ids=torch.tensor([i], device=device),
             fill_color=color,
-            stroke_color=torch.tensor([0.0, 0.0, 0.0, 0.0], device=device)
+            stroke_color=torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
         )
         shapes.append(path)
         shape_groups.append(group)
         pydiffvg.save_svg(os.path.join(out_svg_path, f'{i}.svg'), width, height, shapes, shape_groups)
         i += 1
     et = time.time()
+    pydiffvg.save_svg(os.path.join(out_svg_path, f'final.svg'), width, height, shapes, shape_groups)
     print(f"SVG 初始化耗时: {et-st:.2f} s")
     return shapes, shape_groups
 
-def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, num_iters=100, lamda1=0.1, lamda2=0.1):
+
+def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, learning_rate=0.1, num_iters=100, lamda1=0.1, lamda2=0.1,
+                 early_stopping_patience=10, early_stopping_delta=1e-5):
     """
-    优化 SVG，通过对路径点和颜色参数的反向传播更新，最小化与目标图像的误差
+    优化 SVG，通过对路径点和颜色参数的反向传播更新，最小化与目标图像的误差。
+    新增早停策略：在连续 early_stopping_patience 次迭代中损失没有下降 early_stopping_delta 时提前停止。
     """
     print("开始 SVG 优化...")
     image_target = torch.from_numpy(target_image).float() / 255.0
     image_target = image_target.to(device)
     canvas_height, canvas_width = target_image.shape[0], target_image.shape[1]
+    pydiffvg.save_svg(os.path.join(svg_out_path, f'init.svg'), canvas_width, canvas_height, shapes, shape_groups)
+    
     points_vars = []
+    stroke_width_vars = []
     color_vars = []
+    stroke_color_var = []
     for path in shapes:
         path.points = path.points.to(device)
         path.points.requires_grad = True
         points_vars.append(path.points)
+        path.stroke_width = path.stroke_width.to(device)
+        path.stroke_width.requires_grad = True
+        stroke_width_vars.append(path.stroke_width)
     for group in shape_groups:
         group.fill_color = group.fill_color.to(device)
         group.fill_color.requires_grad = True
         color_vars.append(group.fill_color)
-    optim = torch.optim.Adam(points_vars + color_vars, lr=0.1)
+        group.stroke_color = group.stroke_color.to(device)
+        group.stroke_color.requires_grad = True
+        stroke_color_var.append(group.stroke_color)
+    
+    optim = torch.optim.Adam(points_vars + stroke_width_vars + color_vars + stroke_color_var, lr=learning_rate)
+    # optim = torch.optim.Adam(points_vars + color_vars, lr=learning_rate)
     render = pydiffvg.RenderFunction.apply
+
+    best_loss = float('inf')
+    no_improve_count = 0
+
     for iter in range(num_iters):
         optim.zero_grad()
         scene_args = pydiffvg.RenderFunction.serialize_scene(
@@ -174,9 +195,24 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, num_i
         num_paths = len(shapes)
         path_penalty = lamda1 * num_paths
         loss = mse_loss + path_penalty
+
         loss.backward()
         optim.step()
+
+        # 早停逻辑
+        current_loss = loss.item()
+        if current_loss + early_stopping_delta < best_loss:
+            best_loss = current_loss
+            no_improve_count = 0
+        else:
+            no_improve_count += 1
+
         if iter % 10 == 0:
-            print(f"迭代 {iter}, Loss: {loss.item():.4f}")
+            print(f"迭代 {iter}, Loss: {current_loss:.4f}")
             pydiffvg.save_svg(os.path.join(svg_out_path, f'iter_{iter}.svg'), canvas_width, canvas_height, shapes, shape_groups)
+        
+        if no_improve_count >= early_stopping_patience:
+            print(f"早停：连续 {early_stopping_patience} 次迭代损失无明显下降，提前停止优化。")
+            break
+
     pydiffvg.save_svg(os.path.join(svg_out_path, 'final.svg'), canvas_width, canvas_height, shapes, shape_groups)
