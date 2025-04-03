@@ -18,10 +18,9 @@ def load_and_resize(image_path: str, target_size: int = 512):
     return np.array(resized)
   
 def save_target_image(image_array, out_dir, file_name):
-    """
-    将 numpy 图像保存为 PIL 格式图片
-    """
     img_pil = Image.fromarray(image_array)
     out_file = os.path.join(out_dir, file_name)
+    if not os.path.splitext(out_file)[1]:  # 检查是否有扩展名
+        out_file += '.jpg'  # 如果没有，添加默认扩展名
     img_pil.save(out_file)
     return out_file

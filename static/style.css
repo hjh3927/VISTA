@@ -1,0 +1,176 @@
+/* 整体页面样式 */
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #FFCCCC;
+  color: #333;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  background-color: #CCFFFF;
+  color: #483a3a;
+  padding: 1px;
+  text-align: center;
+}
+
+main {
+  flex: 1;
+  padding: 10px;
+}
+
+/* 两栏布局，左右面板等高 */
+.container {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  align-items: stretch;
+}
+
+.panel {
+  background: #fff;
+  padding: 20px;
+  border-radius: 5px;
+  flex: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 左侧上传表单与预览 */
+#uploadPanel form .form-group {
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+}
+
+#uploadPanel form .form-group label {
+  width: 130px;
+  margin-right: 10px;
+}
+
+#uploadPanel form .form-group input {
+  flex: 1;
+  padding: 5px;
+}
+
+/* 按钮样式 */
+form button {
+  width: 100%;
+  padding: 10px;
+  background-color: #CCFFFF;
+  color: #333;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+form button:hover {
+  background-color: #62fbfb;
+}
+
+/* 超参数区域样式，适当缩小 */
+.parameters {
+  margin-top: 20px;
+}
+
+.parameters h2 {
+  margin-bottom: 10px;
+  font-size: 1.1em;
+  color: #555;
+}
+
+.form-group.small label {
+  width: 110px;
+  font-size: 0.9em;
+}
+
+.form-group.small input {
+  font-size: 0.9em;
+  padding: 4px;
+}
+
+/* 预览图样式 */
+.preview {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.preview img {
+  max-width: 100%;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+/* SVG 预览区域（iframe） */
+.svg-object {
+  width: 100%;
+  height: 500px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  overflow: auto;
+}
+
+/* 进度条 */
+#progressContainer {
+  margin-top: 10px;
+  width: 100%;
+  background: #ddd;
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+  height: 25px;
+}
+
+#progressBar {
+  background: #FFFFCC;
+  height: 100%;
+  width: 0%;
+  transition: width 0.2s linear;
+}
+
+#progressText {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  line-height: 25px;
+  color: #333;
+  font-weight: bold;
+}
+
+/* 状态提示 */
+#statusMessage {
+  margin-top: 10px;
+  font-size: 1em;
+  text-align: center;
+  color: #CCFFFF;
+}
+
+/* 下载按钮 */
+#downloadContainer {
+  text-align: center;
+  margin-top: 10px;
+}
+
+#downloadBtn {
+  display: inline-block;
+  padding: 10px 20px;
+  background-color: #FF5722;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 3px;
+}
+
+#downloadBtn:hover {
+  background-color: #e64a19;
+}
+
+/* 隐藏元素 */
+.hidden {
+  display: none;
+}

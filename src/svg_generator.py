@@ -144,7 +144,6 @@ def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_i
 
     shapes.append(bg_path)
     shape_groups.append(bg_group)  
-    pydiffvg.save_svg(os.path.join(out_svg_path, f'0.svg'), width, height, shapes, shape_groups)
 
     i = 1
     for j, mask_path in enumerate(pre_mask_path_list) :
@@ -164,8 +163,8 @@ def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_i
         )
         shapes.append(path)
         shape_groups.append(group)
-        if j % 10 == 0 :
-            pydiffvg.save_svg(os.path.join(out_svg_path, f'{i}.svg'), width, height, shapes, shape_groups)
+        # if j % 10 == 0 :
+        #     pydiffvg.save_svg(os.path.join(out_svg_path, f'{i}.svg'), width, height, shapes, shape_groups)
         i += 1
     et = time.time()
     pydiffvg.save_svg(os.path.join(out_svg_path, f'init.svg'), width, height, shapes, shape_groups)

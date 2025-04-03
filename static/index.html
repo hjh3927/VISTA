@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image to SVG Converter</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+
+<body>
+  <header>
+    <h1>Image to SVG Converter</h1>
+  </header>
+  <main>
+    <div class="container">
+      <!-- 左侧：上传、预览、超参数 -->
+      <div class="panel" id="uploadPanel">
+        <form id="uploadForm" enctype="multipart/form-data">
+          <div class="form-group">
+            <label for="file">Upload Image:</label>
+            <input type="file" id="file" name="file" accept="image/*" required>
+          </div>
+          <div class="preview">
+            <h3>Uploaded Image Preview</h3>
+            <img id="imgPreview" src="" alt="Image Preview" />
+          </div>
+          <!-- 超参数区域，字体及间距适当缩小 -->
+          <div class="parameters">
+            <h2>Hyperparameters</h2>
+            <div class="form-group small">
+              <label for="min_area">MIN_AREA:</label>
+              <input type="number" id="min_area" name="min_area" value="10" min="1">
+            </div>
+            <div class="form-group small">
+              <label for="max_error">MAX_ERROR:</label>
+              <input type="number" step="0.1" id="max_error" name="max_error" value="1.0" min="0">
+            </div>
+            <div class="form-group small">
+              <label for="line_threshold">LINE_THRESHOLD:</label>
+              <input type="number" step="0.1" id="line_threshold" name="line_threshold" value="1.0" min="0">
+            </div>
+            <div class="form-group small">
+              <label for="learning_rate">LEARNING_RATE:</label>
+              <input type="number" step="0.01" id="learning_rate" name="learning_rate" value="0.1" min="0">
+            </div>
+            <div class="form-group small">
+              <label for="num_iters">NUM_ITERS:</label>
+              <input type="number" id="num_iters" name="num_iters" value="1000" min="1">
+            </div>
+          </div>
+          <button type="submit">Process</button>
+        </form>
+      </div>
+      <!-- 右侧：SVG预览、进度条、状态提示、下载 -->
+      <div class="panel" id="svgPanel">
+        <div class="preview">
+          <h3>SVG Preview</h3>
+          <!-- 使用 iframe 展示 SVG -->
+          <iframe id="svgPreview" class="svg-object" frameborder="0"></iframe>
+        </div>
+        <!-- 进度条 -->
+        <div id="progressContainer" class="hidden">
+          <div id="progressBar"></div>
+          <span id="progressText">0%</span>
+        </div>
+        <!-- 状态提示 -->
+        <div id="statusMessage" class="hidden"></div>
+        <!-- 下载按钮 -->
+        <div id="downloadContainer" class="hidden">
+          <a id="downloadBtn" href="#" download="output.svg">Download SVG</a>
+        </div>
+      </div>
+    </div>
+    <div id="result"></div>
+  </main>
+  <script src="static/script.js"></script>
+</body>
+
+</html>

@@ -3,8 +3,10 @@ import time
 import cv2
 import numpy as np
 from PIL import Image
+import torch
 from torchvision.transforms import ToTensor
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+from config import DEVICE
 
 def sam(image, masks_path, model_type='vit_h', checkpoint_path='', device='cpu'):
     """
@@ -38,21 +40,18 @@ def sam(image, masks_path, model_type='vit_h', checkpoint_path='', device='cpu')
 
     return mask_path_list
 
-
-def compute_iou(mask1, mask2):
+def sort_masks_by_size(mask_list):
     """
-    计算两个二值掩码之间的交并比（IoU）。
-    
-    参数：
-        mask1 (np.ndarray): 第一个二值掩码，形状为 (height, width)。
-        mask2 (np.ndarray): 第二个二值掩码，形状为 (height, width)。
-        
-    返回：
-        float: 两个掩码之间的交并比（IoU）。
+    根据掩码区域大小排序，面积较大的排在前面
     """
-    intersection = np.logical_and(mask1, mask2).sum()  # 交集
-    union = np.logical_or(mask1, mask2).sum()  # 并集
-    return intersection / union if union != 0 else 0  # 防止除零
+    transform = ToTensor()
+    def get_mask_area(mask_path):
+        mask_image = Image.open(mask_path)
+        mask_tensor = transform(mask_image)
+        return (mask_tensor == 1).sum().item()
+    mask_areas = [(mask_path, get_mask_area(mask_path)) for mask_path in mask_list]
+    sorted_mask_areas = sorted(mask_areas, key=lambda x: x[1], reverse=True)
+    return [mask_path for mask_path, _ in sorted_mask_areas]
 
 def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0.8):
     """
@@ -70,18 +69,12 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0
         list: 处理后的掩码路径列表。
     """
     st = time.time()
-    print("预处理掩码...")
+    print("预处理掩码...") 
+    masks = [cv2.imread(p, cv2.IMREAD_GRAYSCALE) for p in mask_img_list]
+    processed_masks = []
     pre_mask_list = []
-    processed_masks = []  # 用于保存处理后的掩码图像
-
-    for count, mask_img_path in enumerate(mask_img_list):
-        image = cv2.imread(mask_img_path, cv2.IMREAD_GRAYSCALE)
-        if image is None:
-            print(f"无法读取 {mask_img_path}，跳过...")
-            continue
-
+    for count, image in enumerate(masks):
         num_labels, labels = cv2.connectedComponents(image)
-
         for i in range(1, num_labels):
             single_region = np.where(labels == i, 255, 0).astype(np.uint8)
             single_region_area = (single_region == 255).sum().item()
@@ -91,12 +84,15 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0
 
             # 检查当前掩码与已处理掩码之间的交并比，去除重复掩码
             is_duplicate = False
-            for existing_mask in processed_masks:
-                iou = compute_iou(single_region, existing_mask)
-                if iou > iou_threshold:
+            if processed_masks:
+                existing_masks_tensor = torch.stack([torch.from_numpy(m) for m in processed_masks], dim=0).to(DEVICE)
+                mask_tensor = torch.from_numpy(single_region).to(DEVICE)
+                intersections = torch.logical_and(mask_tensor.unsqueeze(0), existing_masks_tensor).sum(dim=(1, 2))
+                unions = torch.logical_or(mask_tensor.unsqueeze(0), existing_masks_tensor).sum(dim=(1, 2))
+                ious = intersections / unions
+                max_iou = ious.max().item()
+                if max_iou > iou_threshold:
                     is_duplicate = True
-                    print(f"掩码 {count}_{i} 与现有掩码重复，交并比为 {iou:.4f}，被跳过")
-                    break
 
             if not is_duplicate:
                 # 保存新的有效掩码
@@ -108,18 +104,5 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0
 
     final_mask_list = sort_masks_by_size(pre_mask_list)
     print(f"预处理掩码耗时--------------->: {time.time()-st:.2f} s")
+
     return final_mask_list
-
-
-def sort_masks_by_size(mask_list):
-    """
-    根据掩码区域大小排序，面积较大的排在前面
-    """
-    transform = ToTensor()
-    def get_mask_area(mask_path):
-        mask_image = Image.open(mask_path)
-        mask_tensor = transform(mask_image)
-        return (mask_tensor == 1).sum().item()
-    mask_areas = [(mask_path, get_mask_area(mask_path)) for mask_path in mask_list]
-    sorted_mask_areas = sorted(mask_areas, key=lambda x: x[1], reverse=True)
-    return [mask_path for mask_path, _ in sorted_mask_areas]
