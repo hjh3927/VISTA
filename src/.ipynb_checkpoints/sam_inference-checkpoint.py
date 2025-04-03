@@ -3,7 +3,6 @@ import time
 import cv2
 import numpy as np
 from PIL import Image
-from torchvision.transforms import ToTensor
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 
 def sam(image, masks_path, model_type='vit_h', checkpoint_path='', device='cpu'):
@@ -13,20 +12,12 @@ def sam(image, masks_path, model_type='vit_h', checkpoint_path='', device='cpu')
     # 初始化模型
     sam = sam_model_registry[model_type](checkpoint=checkpoint_path)
     sam.to(device=device)
-    mask_generator = SamAutomaticMaskGenerator(
-        model=sam,
-        points_per_side=32,             # 每侧采样点数，增大该值可获得更细致分割
-        pred_iou_thresh=0.80,           # 预测 IoU 阈值
-        stability_score_thresh=0.90,    # 稳定性分数阈值
-        crop_n_layers=1,                # 裁剪层数
-        min_mask_region_area=10        # 最小区域面积（可以根据需要调低以保留更多细节）
-    )
-
+    mask_generator = SamAutomaticMaskGenerator(sam)
     st = time.time()
 
     print("运行 SAM 模型生成掩码...")
     masks = mask_generator.generate(image)
-    print(f"生成 {len(masks)} 个掩码，耗时--------------->: {time.time()-st:.2f} s")
+    print(f"生成 {len(masks)} 个掩码，耗时 {time.time()-st:.2f} s")
     
     mask_path_list = []
     for i, mask in enumerate(masks):
@@ -35,8 +26,19 @@ def sam(image, masks_path, model_type='vit_h', checkpoint_path='', device='cpu')
         mask_file_path = os.path.join(masks_path, f'{i}.png')
         mask_img.save(mask_file_path)
         mask_path_list.append(mask_file_path)
-
     return mask_path_list
+
+def find_background_seed(image):
+    """
+    找到图像边界上第一个为0的像素作为背景种子
+    """
+    h, w = image.shape
+    border_pixels = [(x, 0) for x in range(w)] + [(x, h-1) for x in range(w)] + \
+                    [(0, y) for y in range(h)] + [(w-1, y) for y in range(h)]
+    for seed in border_pixels:
+        if image[seed[1], seed[0]] == 0:
+            return seed
+    return (0, 0)
 
 
 def compute_iou(mask1, mask2):
@@ -57,8 +59,9 @@ def compute_iou(mask1, mask2):
 def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0.8):
     """
     预处理二值掩码：
-      1. 分割连通区域并保存有效的掩码。
-      2. 移除交并比高于阈值的重复掩码。
+      1. 使用 floodFill 填充外部背景，去除孔洞。
+      2. 分割连通区域并保存有效的掩码。
+      3. 移除交并比高于阈值的重复掩码。
     
     参数：
         mask_img_list (list): 输入的掩码图像路径列表。
@@ -69,7 +72,6 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0
     返回：
         list: 处理后的掩码路径列表。
     """
-    st = time.time()
     print("预处理掩码...")
     pre_mask_list = []
     processed_masks = []  # 用于保存处理后的掩码图像
@@ -79,8 +81,13 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0
         if image is None:
             print(f"无法读取 {mask_img_path}，跳过...")
             continue
-
-        num_labels, labels = cv2.connectedComponents(image)
+        flood_fill_image = image.copy()
+        h, w = image.shape[:2]
+        mask = np.zeros((h+2, w+2), np.uint8)
+        seed = find_background_seed(flood_fill_image)
+        cv2.floodFill(flood_fill_image, mask, seed, 255)
+        filled_image = cv2.bitwise_or(image, cv2.bitwise_not(flood_fill_image))
+        num_labels, labels = cv2.connectedComponents(filled_image)
 
         for i in range(1, num_labels):
             single_region = np.where(labels == i, 255, 0).astype(np.uint8)
@@ -107,7 +114,6 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0
                 processed_masks.append(single_region)  # 保存已处理的掩码
 
     final_mask_list = sort_masks_by_size(pre_mask_list)
-    print(f"预处理掩码耗时--------------->: {time.time()-st:.2f} s")
     return final_mask_list
 
 
@@ -115,6 +121,7 @@ def sort_masks_by_size(mask_list):
     """
     根据掩码区域大小排序，面积较大的排在前面
     """
+    from torchvision.transforms import ToTensor
     transform = ToTensor()
     def get_mask_area(mask_path):
         mask_image = Image.open(mask_path)

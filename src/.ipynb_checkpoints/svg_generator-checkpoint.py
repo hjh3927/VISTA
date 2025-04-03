@@ -120,34 +120,8 @@ def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_i
     print("初始化 SVG...")
     st = time.time()
     height, width, _ = target_image.shape
-    #加入白色背景
-    bg_points = torch.tensor([
-        [0.0, 0.0],     # 左下角
-        [width, 0.0],  # 右下角
-        [width, height], # 右上角
-        [0.0, height]   # 左上角
-    ])
-
-    bg_path = pydiffvg.Path(
-        num_control_points=torch.LongTensor([0] * 4),
-        points=bg_points,
-        stroke_width=torch.tensor(0.0),
-        is_closed=True,
-    )
-
-    # 创建白色背景的形状组
-    bg_group = pydiffvg.ShapeGroup(
-        shape_ids=torch.tensor([0]),  # 对应 shapes 列表中的第一个元素
-        fill_color=torch.tensor([1.0, 1.0, 1.0, 1.0]),  # 白色 (RGBA)
-        stroke_color=torch.tensor([0.0, 0.0, 0.0, 0.0])
-    )
-
-    shapes.append(bg_path)
-    shape_groups.append(bg_group)  
-    pydiffvg.save_svg(os.path.join(out_svg_path, f'0.svg'), width, height, shapes, shape_groups)
-
     i = 1
-    for j, mask_path in enumerate(pre_mask_path_list) :
+    for mask_path in pre_mask_path_list:
         mask_image = Image.open(mask_path).convert('L')
         path = mask_to_path(mask_image, max_error, line_threshold)
         if path is None:
@@ -164,24 +138,20 @@ def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_i
         )
         shapes.append(path)
         shape_groups.append(group)
-        if j % 10 == 0 :
-            pydiffvg.save_svg(os.path.join(out_svg_path, f'{i}.svg'), width, height, shapes, shape_groups)
+        pydiffvg.save_svg(os.path.join(out_svg_path, f'{i}.svg'), width, height, shapes, shape_groups)
         i += 1
     et = time.time()
-    pydiffvg.save_svg(os.path.join(out_svg_path, f'init.svg'), width, height, shapes, shape_groups)
-    print(f"SVG 初始化耗时--------------->: {time.time()-st:.2f} s")
+    pydiffvg.save_svg(os.path.join(out_svg_path, f'final.svg'), width, height, shapes, shape_groups)
+    print(f"SVG 初始化耗时: {et-st:.2f} s")
     return shapes, shape_groups
 
 
-def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, learning_rate=0.1, num_iters=1000,
+def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, learning_rate=0.1, num_iters=100, lamda1=0.1, lamda2=0.1,
                  early_stopping_patience=10, early_stopping_delta=1e-5):
     """
-    优化 SVG，通过对路径点、颜色、描边宽度和描边颜色参数的反向传播更新，
-    最小化与目标图像的误差。新增早停策略和动态调整学习率：
-    - 当连续 early_stopping_patience 次迭代损失无明显下降时提前停止。
-    - 使用 ReduceLROnPlateau 调度器，根据损失动态降低学习率。
+    优化 SVG，通过对路径点和颜色参数的反向传播更新，最小化与目标图像的误差。
+    新增早停策略：在连续 early_stopping_patience 次迭代中损失没有下降 early_stopping_delta 时提前停止。
     """
-    st = time.time()
     print("开始 SVG 优化...")
     image_target = torch.from_numpy(target_image).float() / 255.0
     image_target = image_target.to(device)
@@ -207,11 +177,8 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, learn
         group.stroke_color.requires_grad = True
         stroke_color_var.append(group.stroke_color)
     
-    # 创建优化器
     optim = torch.optim.Adam(points_vars + stroke_width_vars + color_vars + stroke_color_var, lr=learning_rate)
-    # 使用 ReduceLROnPlateau 调度器，根据损失动态降低学习率，因早停策略设置较长patience，这里设为5次无改善后下降
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, mode='min', factor=0.5, patience=5)
-    
+    # optim = torch.optim.Adam(points_vars + color_vars, lr=learning_rate)
     render = pydiffvg.RenderFunction.apply
 
     best_loss = float('inf')
@@ -224,13 +191,13 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, learn
         )
         img_render = render(canvas_width, canvas_height, 2, 2, iter, None, *scene_args)
         img_render = img_render[:, :, :3].to(device)
-        loss = torch.mean((img_render - image_target) ** 2)
+        mse_loss = torch.mean((img_render - image_target) ** 2)
+        num_paths = len(shapes)
+        path_penalty = lamda1 * num_paths
+        loss = mse_loss + path_penalty
 
         loss.backward()
         optim.step()
-        
-        # 更新学习率调度器
-        scheduler.step(loss)
 
         # 早停逻辑
         current_loss = loss.item()
@@ -241,8 +208,7 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, learn
             no_improve_count += 1
 
         if iter % 10 == 0:
-            current_lr = optim.param_groups[0]['lr']
-            print(f"迭代 {iter}, Loss: {current_loss:.4f}, 当前学习率: {current_lr:.6f}")
+            print(f"迭代 {iter}, Loss: {current_loss:.4f}")
             pydiffvg.save_svg(os.path.join(svg_out_path, f'iter_{iter}.svg'), canvas_width, canvas_height, shapes, shape_groups)
         
         if no_improve_count >= early_stopping_patience:
@@ -250,5 +216,3 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, learn
             break
 
     pydiffvg.save_svg(os.path.join(svg_out_path, 'final.svg'), canvas_width, canvas_height, shapes, shape_groups)
-
-    print(f"SVG 优化耗时--------------->: {time.time()-st:.2f} s")
