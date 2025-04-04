@@ -8,28 +8,31 @@ from preprocessing import load_and_resize, save_target_image
 from sam_inference import sam, preprocessing_mask
 from svg_generator import generate_init_svg, svg_optimize
 
+# 项目路径
+PROJECT_PATH = '/home/hjh/repository/AIVbyPS'
+
 # 模型配置
-CHECKPOINT_PATH = os.path.join("/home/hjh/repository/AIVbyPS", "pretrained_checkpoint/sam_vit_h_4b8939.pth")
+CHECKPOINT_PATH = os.path.join(PROJECT_PATH, "pretrained_checkpoint/sam_vit_h_4b8939.pth")
 MODEL_TYPE = "vit_h"
 DEVICE = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
-def img_to_svg(image_path, min_area, max_error, line_threshold, learning_rate, num_iters):
+def img_to_svg(image_path, target_size, pred_iou_thresh, stability_score_thresh, min_area, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters):
     st = time.time()
     # 临时路径
-    temp_path = os.path.join(os.path.dirname(__file__), '..', 'temp')
+    TEMP_PATH = os.path.join(PROJECT_PATH, 'temp_outputs')
 
-    # 数据和输出路径
-    file_name = "tmp.jpg"
-    out_path = os.path.join(temp_path, f"{file_name.split('.')[0]}")  # 使用文件名（不含扩展名）创建目录
+    # # 数据和输出路径
+    file_name = os.path.basename(image_path)
+    OUT_PATH = os.path.join(TEMP_PATH, f"{file_name.split('.')[0]}")  # 使用文件名（不含扩展名）创建目录
 
     # 输出子目录
-    ORIGIN_MASKS_PATH = os.path.join(out_path, "origin_masks")
-    PRE_MASKS_PATH = os.path.join(out_path, "pre_masks")
-    INIT_SVG_PATH = os.path.join(out_path, "init_svgs")
-    OPTIM_SVG_PATH = os.path.join(out_path, "optim_svgs")
-    TARGET_IMAGE_PATH = os.path.join(out_path, "target_img")
+    ORIGIN_MASKS_PATH = os.path.join(OUT_PATH, "origin_masks")
+    PRE_MASKS_PATH = os.path.join(OUT_PATH, "pre_masks")
+    INIT_SVG_PATH = os.path.join(OUT_PATH, "init_svgs")
+    OPTIM_SVG_PATH = os.path.join(OUT_PATH, "optim_svgs")
+    TARGET_IMAGE_PATH = os.path.join(OUT_PATH, "target_img")
     # 创建输出目录
-    os.makedirs(out_path, exist_ok=True)
+    os.makedirs(OUT_PATH, exist_ok=True)
     os.makedirs(ORIGIN_MASKS_PATH, exist_ok=True)
     os.makedirs(PRE_MASKS_PATH, exist_ok=True)
     os.makedirs(INIT_SVG_PATH, exist_ok=True)
@@ -37,7 +40,7 @@ def img_to_svg(image_path, min_area, max_error, line_threshold, learning_rate, n
     os.makedirs(TARGET_IMAGE_PATH, exist_ok=True)
 
     # 图像预处理与保存目标图像
-    image_resized = load_and_resize(image_path)
+    image_resized = load_and_resize(image_path, target_size)
     # 保存目标图像
     target_img_path = save_target_image(image_resized, TARGET_IMAGE_PATH, file_name)
  
@@ -49,17 +52,19 @@ def img_to_svg(image_path, min_area, max_error, line_threshold, learning_rate, n
     pydiffvg.set_device(DEVICE)
 
     # SAM 掩码生成与预处理
-    mask_path_list = sam(target_image, ORIGIN_MASKS_PATH, model_type=MODEL_TYPE, checkpoint_path=CHECKPOINT_PATH, device=DEVICE)
+    mask_path_list = sam(target_image, ORIGIN_MASKS_PATH, pred_iou_thresh, stability_score_thresh, model_type=MODEL_TYPE, checkpoint_path=CHECKPOINT_PATH, device=DEVICE)
     pre_mask_path_list = preprocessing_mask(mask_path_list, PRE_MASKS_PATH, min_area=min_area)
 
     shapes = []
     shape_groups = []
+    frames = []
     # 初始化 SVG
-    shapes, shape_groups = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, out_svg_path=INIT_SVG_PATH, max_error=max_error, line_threshold=line_threshold)
+    frames = []
+    shapes, shape_groups, frames = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, frames, out_svg_path=INIT_SVG_PATH, max_error=bzer_max_error, line_threshold=line_threshold)
     
     # 优化 SVG
-    svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, learning_rate=learning_rate, num_iters=num_iters)
+    svg_path, gif_path = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, is_stroke=is_stroke, learning_rate=learning_rate, num_iters=num_iters)
     
-    print(f"处理完成，输出目录：{out_path}")
+    print(f"处理完成，输出目录：{OUT_PATH}")
     print(f"总耗时--------------->: {time.time()-st:.2f} s")
-    return f'{OPTIM_SVG_PATH}/final.svg'
+    return svg_path, gif_path

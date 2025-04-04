@@ -9,60 +9,62 @@ import time
 
 app = FastAPI()
 
-# 挂载静态文件目录和临时生成文件目录（用于存放生成的 SVG）
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# 挂载静态文件目录（从项目根目录引用static）
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "../static")), name="static")
+# 挂载临时输出目录
 if not os.path.exists("temp_outputs"):
     os.makedirs("temp_outputs")
 app.mount("/temp_outputs", StaticFiles(directory="temp_outputs"), name="temp_outputs")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
-    with open("static/index.html", "r", encoding="utf-8") as f:
+    with open(os.path.join(os.path.dirname(__file__), "../static/index.html"), "r", encoding="utf-8") as f:
         return f.read()
 
 @app.post("/process")
 async def process_image(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    target_size: int = Form(512),
+    pred_iou_thresh: float = Form(0.80),
+    stability_score_thresh: float = Form(0.90),
     min_area: int = Form(10),
-    max_error: float = Form(1.0),
     line_threshold: float = Form(1.0),
+    bzer_max_error: float = Form(1.0),
     learning_rate: float = Form(0.1),
+    is_stroke: bool = Form(True),
     num_iters: int = Form(1000)
 ):
+
     # 保存上传图片到临时文件
     with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_img:
         shutil.copyfileobj(file.file, temp_img)
         temp_img_path = temp_img.name
 
-    # 调用图像处理和SVG生成函数（假设返回生成的 SVG 文件路径）
-    svg_path = generate_svg(temp_img_path, min_area, max_error, line_threshold, learning_rate, num_iters)
+    # 调用图像处理和SVG生成函数（假设在svg_generator.py中）
+    svg_path, gif_path = img_to_svg(temp_img_path, target_size, pred_iou_thresh, stability_score_thresh, min_area, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters)
     
-    # 将生成的 SVG 移动到 temp_outputs 目录下，便于预览和下载
-    svg_filename = os.path.basename(svg_path)
-    new_svg_path = os.path.join("temp_outputs", svg_filename)
-    shutil.move(svg_path, new_svg_path)
+    # 将路径转换为前端可访问的URL
+    svg_url = svg_path.replace(os.path.abspath("temp_outputs"), "/temp_outputs")
+    gif_url = gif_path.replace(os.path.abspath("temp_outputs"), "/temp_outputs")
+    
+    
+    # 清理任务
+    file_name = os.path.basename(temp_img_path).split('.')[0]
+    rm_path = os.path.join("temp_outputs", file_name)
+    background_tasks.add_task(delete_file_after_delay, rm_path, delay=600)
+    background_tasks.add_task(delete_file_after_delay, temp_img_path, delay=600)
 
-    # 立即删除上传的临时图片
-    os.remove(temp_img_path)
-
-    # 后台任务：延迟 300 秒后删除生成的 SVG 文件（实际环境可用更稳健的定时任务）
-    background_tasks.add_task(delete_file_after_delay, new_svg_path, delay=300)
-
-    # 返回 SVG 文件的 URL（前端可通过该 URL展示预览和下载）
-    return JSONResponse({"svg_url": f"/temp_outputs/{svg_filename}"})
-
-def generate_svg(image_path, min_area, max_error, line_threshold, learning_rate, num_iters):
-    # 这里调用主要算法，返回生成 SVG 文件的临时路径
-    svg_path = img_to_svg(image_path, min_area, max_error, line_threshold, learning_rate, num_iters)
-    return svg_path
+    return JSONResponse({"svg_url": svg_url, "gif_url": gif_url})
 
 def delete_file_after_delay(file_path, delay=300):
-    """后台任务：延迟删除文件"""
+    """后台任务：延迟删除整个目录"""
     time.sleep(delay)
-    if os.path.exists(file_path):
+    if os.path.isdir(file_path):
+        shutil.rmtree(file_path)
+    elif os.path.exists(file_path):
         os.remove(file_path)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

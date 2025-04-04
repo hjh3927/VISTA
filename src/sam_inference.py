@@ -8,7 +8,7 @@ from torchvision.transforms import ToTensor
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 from config import DEVICE
 
-def sam(image, masks_path, model_type='vit_h', checkpoint_path='', device='cpu'):
+def sam(image, masks_path, pred_iou_thresh=0.80, stability_score_thresh=0.90, model_type='vit_h', checkpoint_path='', device='cpu'):
     """
     利用 SAM 模型生成掩码，并保存到 masks_path，返回生成的文件路径列表
     """
@@ -17,11 +17,11 @@ def sam(image, masks_path, model_type='vit_h', checkpoint_path='', device='cpu')
     sam.to(device=device)
     mask_generator = SamAutomaticMaskGenerator(
         model=sam,
-        points_per_side=32,             # 每侧采样点数，增大该值可获得更细致分割
-        pred_iou_thresh=0.80,           # 预测 IoU 阈值
-        stability_score_thresh=0.90,    # 稳定性分数阈值
-        crop_n_layers=1,                # 裁剪层数
-        min_mask_region_area=10        # 最小区域面积（可以根据需要调低以保留更多细节）
+        points_per_side=32,             # 每侧采样点数
+        pred_iou_thresh=pred_iou_thresh,           # 略微降低 IoU 阈值，防止过多小碎片
+        stability_score_thresh=stability_score_thresh,    # 提高稳定性阈值，过滤低质量掩码
+        crop_n_layers=1,                # 提高裁剪层数，使得整体结构更连贯
+        min_mask_region_area=50         # 增大最小区域面积，去除极小碎片
     )
 
     st = time.time()
@@ -93,6 +93,7 @@ def preprocessing_mask(mask_img_list, output_path, min_area=100, iou_threshold=0
                 max_iou = ious.max().item()
                 if max_iou > iou_threshold:
                     is_duplicate = True
+                    print(f"掩码 {count}_{i} 与现有掩码重复，交并比为 {max_iou:.4f}，被跳过")
 
             if not is_duplicate:
                 # 保存新的有效掩码

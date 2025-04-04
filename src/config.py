@@ -24,8 +24,12 @@ MODEL_TYPE = "vit_h"
 DEVICE = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
 #超参数配置
+TARGET_SIZE = 512
+PREDICTION_IOU_THRESHOLD = 0.80
+STABILITY_SCORE_THRESHOLD = 0.90
 MIN_AREA = 10
-MAX_ERROR = 1.0
+BEZIER_MAX_ERROR = 1.0
 LINE_THRESHOLD = 1.0
 LEARNING_RATE = 0.1
 NUM_ITERS = 1000
+IS_STROKE = True

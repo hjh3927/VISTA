@@ -2,79 +2,324 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image to SVG Converter</title>
-  <link rel="stylesheet" href="static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Vector Converter | Image to SVG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
-<body>
-  <header>
-    <h1>Image to SVG Converter</h1>
-  </header>
-  <main>
-    <div class="container">
-      <!-- 左侧：上传、预览、超参数 -->
-      <div class="panel" id="uploadPanel">
-        <form id="uploadForm" enctype="multipart/form-data">
-          <div class="form-group">
-            <label for="file">Upload Image:</label>
-            <input type="file" id="file" name="file" accept="image/*" required>
-          </div>
-          <div class="preview">
-            <h3>Uploaded Image Preview</h3>
-            <img id="imgPreview" src="" alt="Image Preview" />
-          </div>
-          <!-- 超参数区域，字体及间距适当缩小 -->
-          <div class="parameters">
-            <h2>Hyperparameters</h2>
-            <div class="form-group small">
-              <label for="min_area">MIN_AREA:</label>
-              <input type="number" id="min_area" name="min_area" value="10" min="1">
+<body class="bg-[#f7f8fa] text-[#18181b] dark:bg-[#18181b] dark:text-[#f7f8fa] min-h-screen font-sans">
+    <header class="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#1f1f23] shadow-sm">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <img src="/static/logo.svg" alt="Logo" class="w-12 h-8">
+                <h1 class="text-lg font-semibold font-geist-mono">Vector Converter</h1>
             </div>
-            <div class="form-group small">
-              <label for="max_error">MAX_ERROR:</label>
-              <input type="number" step="0.1" id="max_error" name="max_error" value="1.0" min="0">
-            </div>
-            <div class="form-group small">
-              <label for="line_threshold">LINE_THRESHOLD:</label>
-              <input type="number" step="0.1" id="line_threshold" name="line_threshold" value="1.0" min="0">
-            </div>
-            <div class="form-group small">
-              <label for="learning_rate">LEARNING_RATE:</label>
-              <input type="number" step="0.01" id="learning_rate" name="learning_rate" value="0.1" min="0">
-            </div>
-            <div class="form-group small">
-              <label for="num_iters">NUM_ITERS:</label>
-              <input type="number" id="num_iters" name="num_iters" value="1000" min="1">
-            </div>
-          </div>
-          <button type="submit">Process</button>
-        </form>
-      </div>
-      <!-- 右侧：SVG预览、进度条、状态提示、下载 -->
-      <div class="panel" id="svgPanel">
-        <div class="preview">
-          <h3>SVG Preview</h3>
-          <!-- 使用 iframe 展示 SVG -->
-          <iframe id="svgPreview" class="svg-object" frameborder="0"></iframe>
+            <button id="theme-toggle"
+                class="p-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+            </button>
         </div>
-        <!-- 进度条 -->
-        <div id="progressContainer" class="hidden">
-          <div id="progressBar"></div>
-          <span id="progressText">0%</span>
-        </div>
-        <!-- 状态提示 -->
-        <div id="statusMessage" class="hidden"></div>
-        <!-- 下载按钮 -->
-        <div id="downloadContainer" class="hidden">
-          <a id="downloadBtn" href="#" download="output.svg">Download SVG</a>
-        </div>
-      </div>
-    </div>
-    <div id="result"></div>
-  </main>
-  <script src="static/script.js"></script>
+    </header>
+
+    <main class="container mx-auto px-4 py-8 flex flex-col lg:flex-row gap-6">
+        <!-- Left Panel - Controls -->
+        <section class="w-full lg:w-1/3 flex flex-col gap-6">
+            <!-- Upload Section -->
+            <div
+                class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-5">
+                <h2 class="text-lg font-medium mb-4 flex items-center">
+                    <i data-lucide="upload" class="w-5 h-5 mr-2"></i>
+                    Upload Image
+                </h2>
+                <div id="dropzone"
+                    class="border-2 border-dashed border-neutral-300 dark:border-neutral-700 rounded-lg p-8 text-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
+                    <i data-lucide="image" class="w-12 h-12 mx-auto mb-4 text-neutral-400"></i>
+                    <p class="mb-2 font-medium">Drag & drop your image or</p>
+                    <button id="browse-button"
+                        class="px-4 py-2 bg-neutral-100 dark:bg-neutral-800 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors font-medium">
+                        Browse Files
+                    </button>
+                    <p class="mt-2 text-neutral-500 dark:text-neutral-400 text-sm">Supports JPG, PNG, GIF (Max 10MB)</p>
+                    <input type="file" id="file-input" class="hidden" accept="image/*">
+                </div>
+                <div id="preview-container" class="mt-4 hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <p id="file-name" class="font-medium truncate"></p>
+                        <button id="remove-file"
+                            class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="relative rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-800">
+                        <img id="image-preview" src="" alt="Preview" class="w-full h-auto">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parameters Section -->
+            <div
+                class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-medium flex items-center">
+                        <i data-lucide="settings" class="w-5 h-5 mr-2"></i>
+                        Parameters
+                    </h2>
+                    <button id="reset-params"
+                        class="text-xs px-3 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors">
+                        Reset to Default
+                    </button>
+                </div>
+
+                <div class="space-y-5">
+                    <!-- Target Size -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label for="target-size" class="text-sm font-medium">Target Size</label>
+                            <span id="target-size-value"
+                                class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">512</span>
+                        </div>
+                        <input type="range" id="target-size" min="256" max="1024" step="128" value="512"
+                            class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                        <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                            <span>256</span>
+                            <span>1024</span>
+                        </div>
+                    </div>
+
+                    <!-- Prediction IOU Threshold -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label for="pred-iou-thresh" class="text-sm font-medium">Prediction IOU Threshold</label>
+                            <span id="pred-iou-thresh-value"
+                                class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">0.80</span>
+                        </div>
+                        <input type="range" id="pred-iou-thresh" min="0.70" max="0.99" step="0.01" value="0.80"
+                            class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                        <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                            <span>0.70</span>
+                            <span>0.99</span>
+                        </div>
+                    </div>
+
+                    <!-- Stability Score Threshold -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label for="stability-score-thresh" class="text-sm font-medium">Stability Score
+                                Threshold</label>
+                            <span id="stability-score-thresh-value"
+                                class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">0.90</span>
+                        </div>
+                        <input type="range" id="stability-score-thresh" min="0.70" max="0.99" step="0.01" value="0.90"
+                            class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                        <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                            <span>0.70</span>
+                            <span>0.99</span>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Parameters Toggle -->
+                    <div>
+                        <button id="advanced-toggle"
+                            class="flex items-center text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white">
+                            <i data-lucide="chevron-right" id="advanced-icon"
+                                class="w-4 h-4 mr-1 transition-transform"></i>
+                            Advanced Parameters
+                        </button>
+                    </div>
+
+                    <!-- Advanced Parameters (Hidden by Default) -->
+                    <div id="advanced-params"
+                        class="hidden space-y-5 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+                        <!-- Min Area -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="min-area" class="text-sm font-medium">Min Area</label>
+                                <span id="min-area-value"
+                                    class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">10</span>
+                            </div>
+                            <input type="range" id="min-area" min="5" max="100" step="1" value="10"
+                                class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                            <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                                <span>5</span>
+                                <span>100</span>
+                            </div>
+                        </div>
+
+                        <!-- Line Threshold -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="line-threshold" class="text-sm font-medium">Line Threshold</label>
+                                <span id="line-threshold-value"
+                                    class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">1.0</span>
+                            </div>
+                            <input type="range" id="line-threshold" min="0.50" max="2.0" step="0.01" value="1.0"
+                                class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                            <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                                <span>0.50</span>
+                                <span>2.0</span>
+                            </div>
+                        </div>
+
+                        <!-- Bezier Max Error -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="bzer-max-error" class="text-sm font-medium">Bezier Max Error</label>
+                                <span id="bzer-max-error-value"
+                                    class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">1.0</span>
+                            </div>
+                            <input type="range" id="bzer-max-error" min="0.5" max="3.0" step="0.1" value="1.0"
+                                class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                            <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                                <span>0.5</span>
+                                <span>3.0</span>
+                            </div>
+                        </div>
+
+                        <!-- Learning Rate -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="learning-rate" class="text-sm font-medium">Learning Rate</label>
+                                <span id="learning-rate-value"
+                                    class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">0.10</span>
+                            </div>
+                            <input type="range" id="learning-rate" min="0.01" max="1.0" step="0.01" value="0.10"
+                                class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                            <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                                <span>0.01</span>
+                                <span>1.0</span>
+                            </div>
+                        </div>
+
+                        <!-- Number of Iterations -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="num-iters" class="text-sm font-medium">Number of Iterations</label>
+                                <span id="num-iters-value"
+                                    class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">1000</span>
+                            </div>
+                            <input type="range" id="num-iters" min="500" max="2000" step="100" value="1000"
+                                class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                            <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                                <span>500</span>
+                                <span>2000</span>
+                            </div>
+                        </div>
+
+                        <!-- Is Stroke Toggle -->
+                        <div class="flex items-center justify-between">
+                            <label for="is-stroke" class="text-sm font-medium">Use Stroke Model</label>
+                            <div
+                                class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" id="is-stroke"
+                                    class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white dark:bg-neutral-600 border-4 border-neutral-200 dark:border-neutral-700 appearance-none cursor-pointer">
+                                <label for="is-stroke"
+                                    class="toggle-label block overflow-hidden h-5 rounded-full bg-neutral-200 dark:bg-neutral-700 cursor-pointer"></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Process Button -->
+            <div
+                class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-5">
+                <button id="process-button"
+                    class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600 flex items-center justify-center"
+                    disabled>
+                    <i data-lucide="wand-2" class="w-5 h-5 mr-2"></i>
+                    Convert to Vector
+                </button>
+                <div id="progress-container" class="mt-4 hidden">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-sm font-medium" id="progress-status">Processing...</span>
+                        <span class="text-xs font-medium" id="progress-percentage">0%</span>
+                    </div>
+                    <div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2 overflow-hidden">
+                        <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all" style="width: 0%">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel - Results -->
+        <section class="w-full lg:w-2/3 space-y-6">
+            <!-- Initial State -->
+            <div id="initial-state"
+                class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-8 text-center flex flex-col items-center justify-center min-h-[400px]">
+                <i data-lucide="image-down" class="w-16 h-16 text-neutral-300 dark:text-neutral-600 mb-4"></i>
+                <h3 class="text-lg font-medium mb-2">No Image Processed Yet</h3>
+                <p class="text-neutral-500 dark:text-neutral-400 max-w-md">Upload an image and adjust parameters to
+                    convert it to a vector SVG format. The result will appear here.</p>
+            </div>
+
+            <!-- Processing Results (Hidden by Default) -->
+            <div id="results-container" class="hidden space-y-6">
+                <!-- SVG Preview -->
+                <div
+                    class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-5">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-medium flex items-center">
+                            <i data-lucide="file-vector" class="w-5 h-5 mr-2"></i>
+                            SVG Result
+                        </h2>
+                        <div class="flex items-center space-x-2">
+                            <button id="toggle-background"
+                                class="text-xs px-3 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors">
+                                Toggle Background
+                            </button>
+                            <button id="download-svg"
+                                class="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center">
+                                <i data-lucide="download" class="w-3 h-3 mr-1"></i>
+                                Download SVG
+                            </button>
+                        </div>
+                    </div>
+                    <div id="svg-preview-container"
+                        class="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden bg-grid min-h-[300px] flex items-center justify-center">
+                        <div id="svg-preview" class="w-full h-full"></div>
+                    </div>
+                </div>
+
+                <!-- Animation Preview -->
+                <div
+                    class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-5">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-medium flex items-center">
+                            <i data-lucide="video" class="w-5 h-5 mr-2"></i>
+                            Animation Preview
+                        </h2>
+                        <button id="replay-animation"
+                            class="text-xs px-3 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors flex items-center">
+                            <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i>
+                            Replay
+                        </button>
+                    </div>
+                    <div
+                        class="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden bg-white dark:bg-black min-h-[200px] flex items-center justify-center">
+                        <img id="animation-preview" src="" alt="Animation" class="max-w-full max-h-[300px]">
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- <script src="/static/utils.js"></script> -->
+    <script src="/static/app.js"></script>
+    <!-- <script src="/static/script.js"></script> -->
+    <script>
+        window.addEventListener("wheel", (e) => {
+            const isPinching = e.ctrlKey
+            if (isPinching) e.preventDefault()
+        }, { passive: false })
+    </script>
 </body>
 
 </html>

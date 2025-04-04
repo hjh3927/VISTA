@@ -4,7 +4,7 @@ import cv2
 import pydiffvg
 
 from config import DATA_PATH, OUT_PATH, ORIGIN_MASKS_PATH, PRE_MASKS_PATH, INIT_SVG_PATH, OPTIM_SVG_PATH, TARGET_IMAGE_PATH, CHECKPOINT_PATH
-from config import MODEL_TYPE, DEVICE, MIN_AREA, MAX_ERROR, LINE_THRESHOLD, LEARNING_RATE, NUM_ITERS
+from config import MODEL_TYPE, DEVICE, TARGET_SIZE, PREDICTION_IOU_THRESHOLD, STABILITY_SCORE_THRESHOLD, MIN_AREA, BEZIER_MAX_ERROR, LINE_THRESHOLD, LEARNING_RATE, NUM_ITERS, IS_STROKE
 from preprocessing import load_and_resize, save_target_image
 from sam_inference import sam, preprocessing_mask
 from svg_generator import generate_init_svg, svg_optimize
@@ -20,7 +20,7 @@ def main():
     os.makedirs(TARGET_IMAGE_PATH, exist_ok=True)
 
     # 图像预处理与保存目标图像
-    image_resized = load_and_resize(DATA_PATH)
+    image_resized = load_and_resize(DATA_PATH, TARGET_SIZE)
     # 保存目标图像
     target_img_path = save_target_image(image_resized, TARGET_IMAGE_PATH, os.path.basename(DATA_PATH))
  
@@ -32,16 +32,17 @@ def main():
     pydiffvg.set_device(DEVICE)
 
     # SAM 掩码生成与预处理
-    mask_path_list = sam(target_image, ORIGIN_MASKS_PATH, model_type=MODEL_TYPE, checkpoint_path=CHECKPOINT_PATH, device=DEVICE)
+    mask_path_list = sam(target_image, ORIGIN_MASKS_PATH, PREDICTION_IOU_THRESHOLD, STABILITY_SCORE_THRESHOLD, model_type=MODEL_TYPE, checkpoint_path=CHECKPOINT_PATH, device=DEVICE)
     pre_mask_path_list = preprocessing_mask(mask_path_list, PRE_MASKS_PATH, min_area=MIN_AREA)
 
     shapes = []
     shape_groups = []
+    frames = []
     # 初始化 SVG
-    shapes, shape_groups = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, out_svg_path=INIT_SVG_PATH, max_error=MAX_ERROR, line_threshold=LINE_THRESHOLD)
+    shapes, shape_groups, frames = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, frames, out_svg_path=INIT_SVG_PATH, max_error=BEZIER_MAX_ERROR, line_threshold=LINE_THRESHOLD)
     
     # 优化 SVG
-    svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, learning_rate=LEARNING_RATE, num_iters=NUM_ITERS)
+    svg_path, gif_path = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, is_stroke=IS_STROKE, learning_rate=LEARNING_RATE, num_iters=NUM_ITERS)
     
     print(f"处理完成，输出目录：{OUT_PATH}")
     print(f"总耗时--------------->: {time.time()-st:.2f} s")
