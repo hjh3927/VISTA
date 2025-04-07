@@ -124,6 +124,48 @@
                         </div>
                     </div>
 
+                    <!-- Crop N Layers (开关) -->
+                    <div class="flex items-center justify-between">
+                        <label for="crop-n-layers" class="text-sm font-medium">Crop N Layers</label>
+                        <div
+                            class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" id="crop-n-layers" checked
+                                class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white dark:bg-neutral-600 border-4 border-neutral-200 dark:border-neutral-700 appearance-none cursor-pointer">
+                            <label for="crop-n-layers"
+                                class="toggle-label block overflow-hidden h-5 rounded-full bg-neutral-200 dark:bg-neutral-700 cursor-pointer"></label>
+                        </div>
+                    </div>
+
+                    <!-- Min Area -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label for="min-area" class="text-sm font-medium">Min Area</label>
+                            <span id="min-area-value"
+                                class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">50</span>
+                        </div>
+                        <input type="range" id="min-area" min="30" max="200" step="1" value="50"
+                            class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                        <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                            <span>30</span>
+                            <span>200</span>
+                        </div>
+                    </div>
+
+                    <!-- Pre Color Threshold -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label for="pre-color-threshold" class="text-sm font-medium">Pre Color Threshold</label>
+                            <span id="pre-color-threshold-value"
+                                class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">0.0</span>
+                        </div>
+                        <input type="range" id="pre-color-threshold" min="0.0" max="0.3" step="0.01" value="0.0"
+                            class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                        <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                            <span>0.0</span>
+                            <span>0.3</span>
+                        </div>
+                    </div>
+
                     <!-- Advanced Parameters Toggle -->
                     <div>
                         <button id="advanced-toggle"
@@ -137,21 +179,6 @@
                     <!-- Advanced Parameters (Hidden by Default) -->
                     <div id="advanced-params"
                         class="hidden space-y-5 pt-2 border-t border-neutral-200 dark:border-neutral-800">
-                        <!-- Min Area -->
-                        <div>
-                            <div class="flex justify-between items-center mb-1">
-                                <label for="min-area" class="text-sm font-medium">Min Area</label>
-                                <span id="min-area-value"
-                                    class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">10</span>
-                            </div>
-                            <input type="range" id="min-area" min="5" max="100" step="1" value="10"
-                                class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
-                            <div class="flex justify-between text-xs text-neutral-500 mt-1">
-                                <span>5</span>
-                                <span>100</span>
-                            </div>
-                        </div>
-
                         <!-- Line Threshold -->
                         <div>
                             <div class="flex justify-between items-center mb-1">
@@ -217,10 +244,25 @@
                             <label for="is-stroke" class="text-sm font-medium">Use Stroke Model</label>
                             <div
                                 class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
-                                <input type="checkbox" id="is-stroke"
+                                <input type="checkbox" id="is-stroke" checked
                                     class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white dark:bg-neutral-600 border-4 border-neutral-200 dark:border-neutral-700 appearance-none cursor-pointer">
                                 <label for="is-stroke"
                                     class="toggle-label block overflow-hidden h-5 rounded-full bg-neutral-200 dark:bg-neutral-700 cursor-pointer"></label>
+                            </div>
+                        </div>
+
+                        <!-- Rm Color Threshold -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="rm-color-threshold" class="text-sm font-medium">Rm Color Threshold</label>
+                                <span id="rm-color-threshold-value"
+                                    class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">0.0</span>
+                            </div>
+                            <input type="range" id="rm-color-threshold" min="0.0" max="0.3" step="0.01" value="0.0"
+                                class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
+                            <div class="flex justify-between text-xs text-neutral-500 mt-1">
+                                <span>0.0</span>
+                                <span>0.3</span>
                             </div>
                         </div>
                     </div>
@@ -290,30 +332,48 @@
 
                 <!-- Animation Preview -->
                 <div
-                    class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-5">
+                    class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-5 mt-4">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-lg font-medium flex items-center">
                             <i data-lucide="video" class="w-5 h-5 mr-2"></i>
                             Animation Preview
                         </h2>
-                        <button id="replay-animation"
-                            class="text-xs px-3 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors flex items-center">
-                            <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i>
-                            Replay
-                        </button>
+                        <div class="flex items-center space-x-1">
+                            <button id="replay-animation"
+                                class="text-xs px-3 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors flex items-center">
+                                <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i>
+                                Replay
+                            </button>
+                            <button id="download-gif"
+                                class="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center">
+                                <i data-lucide="download" class="w-3 h-3 mr-1"></i>
+                                Download GIF
+                            </button>
+                        </div>
                     </div>
                     <div
                         class="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden bg-white dark:bg-black min-h-[200px] flex items-center justify-center">
                         <img id="animation-preview" src="" alt="Animation" class="max-w-full max-h-[300px]">
                     </div>
                 </div>
+
+                <!-- Processing Log -->
+                <div id="log-container"
+                    class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-5 mt-4 h-80 overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-medium flex items-center">
+                            <i data-lucide="terminal" class="w-5 h-5 mr-2"></i>
+                            Processing Log
+                        </h2>
+                    </div>
+                    <pre id="log-output"
+                        class="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap"></pre>
+                </div>
             </div>
         </section>
     </main>
 
-    <!-- <script src="/static/utils.js"></script> -->
     <script src="/static/app.js"></script>
-    <!-- <script src="/static/script.js"></script> -->
     <script>
         window.addEventListener("wheel", (e) => {
             const isPinching = e.ctrlKey

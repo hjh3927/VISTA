@@ -41,7 +41,7 @@ function createSvgElement(tag, attrs = {}) {
     return el;
 }
 
-// Main application logic 
+// Main application logic
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const fileInput = document.getElementById('file-input');
@@ -64,33 +64,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleBackgroundButton = document.getElementById('toggle-background');
     const animationPreview = document.getElementById('animation-preview');
     const replayAnimationButton = document.getElementById('replay-animation');
+    const downloadGifButton = document.getElementById('download-gif');
     const advancedToggle = document.getElementById('advanced-toggle');
     const advancedParams = document.getElementById('advanced-params');
     const advancedIcon = document.getElementById('advanced-icon');
     const resetParamsButton = document.getElementById('reset-params');
+    const logOutput = document.getElementById('log-output'); // 新增日志输出元素
+    const cropNLayersCheckbox = document.getElementById('crop-n-layers');
 
-    let backgroundState = 'grid'; // 初始为网格背景
+    let backgroundState = 'grid';
     const isStrokeCheckbox = document.getElementById('is-stroke');
-    isStrokeCheckbox.checked = true; // 确保页面加载时默认开启
+    isStrokeCheckbox.checked = true;
 
-    // Parameter sliders and values
+    // 定义滑块参数及其默认值
     const sliders = [
         { id: 'target-size', valueId: 'target-size-value', default: 512 },
         { id: 'pred-iou-thresh', valueId: 'pred-iou-thresh-value', default: 0.80 },
         { id: 'stability-score-thresh', valueId: 'stability-score-thresh-value', default: 0.90 },
-        { id: 'min-area', valueId: 'min-area-value', default: 10 },
+        { id: 'min-area', valueId: 'min-area-value', default: 50 },               // 新参数
+        { id: 'pre-color-threshold', valueId: 'pre-color-threshold-value', default: 0.0 },  // 新参数
         { id: 'line-threshold', valueId: 'line-threshold-value', default: 1.0 },
         { id: 'bzer-max-error', valueId: 'bzer-max-error-value', default: 1.0 },
-        { id: 'learning-rate', valueId: 'learning-rate-value', default: 0.1 },
-        { id: 'num-iters', valueId: 'num-iters-value', default: 1000 }
+        { id: 'learning-rate', valueId: 'learning-rate-value', default: 0.10 },
+        { id: 'num-iters', valueId: 'num-iters-value', default: 1000 },
+        { id: 'rm-color-threshold', valueId: 'rm-color-threshold-value', default: 0.0 }  // 新参数
     ];
-
-    // Track uploaded file
     let uploadedFile = null;
     let svgData = null;
     let animationUrl = null;
 
-    // Initialize slider values
     sliders.forEach(slider => {
         const inputElement = document.getElementById(slider.id);
         const valueElement = document.getElementById(slider.valueId);
@@ -100,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Reset parameters to defaults
+    // 重置参数到默认值
     resetParamsButton.addEventListener('click', () => {
         sliders.forEach(slider => {
             const inputElement = document.getElementById(slider.id);
@@ -108,16 +110,15 @@ document.addEventListener('DOMContentLoaded', () => {
             inputElement.value = slider.default;
             valueElement.textContent = slider.default;
         });
-        isStrokeCheckbox.checked = true; // 重置时保持开启
+        isStrokeCheckbox.checked = true;      // 重置 Use Stroke Model
+        cropNLayersCheckbox.checked = true;   // 重置 Crop N Layers
     });
 
-    // Toggle advanced parameters
     advancedToggle.addEventListener('click', () => {
         advancedParams.classList.toggle('hidden');
         advancedIcon.classList.toggle('rotate-90');
     });
 
-    // File Upload Handling
     fileInput.addEventListener('change', handleFileSelect);
     browseButton.addEventListener('click', () => fileInput.click());
     dropzone.addEventListener('dragover', (e) => {
@@ -154,7 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Background state:', backgroundState);
     });
 
-    // Download SVG button
     downloadSvgButton.addEventListener('click', () => {
         if (!svgData) return;
         const blob = new Blob([svgData], { type: 'image/svg+xml' });
@@ -168,7 +168,6 @@ document.addEventListener('DOMContentLoaded', () => {
         URL.revokeObjectURL(url);
     });
 
-    // Replay animation button
     replayAnimationButton.addEventListener('click', () => {
         if (!animationUrl) return;
         animationPreview.src = '';
@@ -177,7 +176,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 50);
     });
 
-    // Functions
+    downloadGifButton.addEventListener('click', async () => {
+        if (!animationUrl) return;
+        try {
+            const response = await fetch(animationUrl);
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'animation.gif';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to download GIF:', error);
+            alert('Failed to download GIF. Please try again.');
+        }
+    });
+
     function handleFileSelect(e) {
         if (e.target.files.length) {
             handleFileFromEvent(e.target.files[0]);
@@ -185,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleFileFromEvent(file) {
-        if (!isImageFile(file)) { // 使用 utils.js 的函数
+        if (!isImageFile(file)) {
             alert('Please select an image file.');
             return;
         }
@@ -206,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function simulateProgress() {
         let progress = 0;
-        const totalTime = 35000; // 35秒
+        const totalTime = 35000;
         const targetProgress = 99;
         const intervalTime = 200;
         const increment = (targetProgress / (totalTime / intervalTime));
@@ -232,7 +249,32 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // WebSocket
+    const ws = new WebSocket(`ws://${window.location.host}/ws/logs`);
+    ws.onopen = () => {
+        console.log('WebSocket connected');
+        logOutput.textContent = 'Connected to log stream.\n';
+    };
+    ws.onmessage = (event) => {
+        const message = event.data;
+        if (message !== "Heartbeat" && !message.includes("INFO -")) {  // 忽略日志格式的消息
+            console.log('Received output:', message);
+            logOutput.textContent += `${message}\n`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+    };
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        logOutput.textContent += 'Error connecting to log stream.\n';
+    };
+    ws.onclose = () => {
+        console.log('WebSocket closed');
+        logOutput.textContent += 'Log stream closed.\n';
+    };
+
     processButton.addEventListener('click', async () => {
+        console.log('Process button clicked');
+        logOutput.textContent = ''; // 清空日志
         if (!uploadedFile) return;
 
         progressContainer.classList.remove('hidden');
@@ -246,12 +288,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 target_size: parseInt(document.getElementById('target-size').value),
                 pred_iou_thresh: parseFloat(document.getElementById('pred-iou-thresh').value),
                 stability_score_thresh: parseFloat(document.getElementById('stability-score-thresh').value),
+                crop_n_layers: document.getElementById('crop-n-layers').checked ? 1 : 0,
                 min_area: parseFloat(document.getElementById('min-area').value),
+                pre_color_threshold: parseFloat(document.getElementById('pre-color-threshold').value),
                 line_threshold: parseFloat(document.getElementById('line-threshold').value),
                 bzer_max_error: parseFloat(document.getElementById('bzer-max-error').value),
                 learning_rate: parseFloat(document.getElementById('learning-rate').value),
                 is_stroke: isStrokeCheckbox.checked,
-                num_iters: parseInt(document.getElementById('num-iters').value)
+                num_iters: parseInt(document.getElementById('num-iters').value),
+                rm_color_threshold: parseFloat(document.getElementById('rm-color-threshold').value)
             };
 
             const formData = new FormData();
@@ -287,6 +332,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 参数实时更新显示值
+    ['target-size', 'pred-iou-thresh', 'stability-score-thresh', 'min-area', 'pre-color-threshold', 'line-threshold', 'bzer-max-error', 'learning-rate', 'num-iters', 'rm-color-threshold'].forEach(id => {
+        const input = document.getElementById(id);
+        const valueSpan = document.getElementById(`${id}-value`);
+        input.addEventListener('input', () => {
+            valueSpan.textContent = input.value;
+        });
+    });
+
     function handleProcessResult(result) {
         svgData = result.svg;
         animationUrl = result.animationUrl + '?t=' + new Date().getTime();
@@ -299,13 +353,9 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.classList.remove('hidden');
         processButton.disabled = false;
     }
-});
 
-// Initialize Lucide icons and theme toggle 
-document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
 
-    // Check for saved theme
     if (localStorage.getItem('theme') === 'dark' ||
         (window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem('theme'))) {
         document.documentElement.classList.add('dark');
@@ -313,7 +363,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.classList.remove('dark');
     }
 
-    // Theme toggle
     document.getElementById('theme-toggle').addEventListener('click', () => {
         if (document.documentElement.classList.contains('dark')) {
             document.documentElement.classList.remove('dark');

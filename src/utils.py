@@ -1,5 +1,34 @@
+import os
+import cv2
 import numpy as np
+import pydiffvg
 from scipy.optimize import least_squares
+from sklearn.cluster import KMeans
+import torch
+from PIL import Image
+from torchvision.transforms import ToTensor
+
+def load_and_resize(image_path: str, target_size: int = 512):
+    """
+    加载并缩放图像，保持宽高比，返回 numpy 数组
+    """
+    print("预处理目标图像...")
+    image = Image.open(image_path).convert("RGB") 
+    w, h = image.size
+
+    scale = target_size / max(w, h)
+    target_size = (int(w*scale), int(h*scale))    
+    resized = image.resize(target_size, Image.Resampling.LANCZOS)
+    
+    return np.array(resized)
+  
+def save_target_image(image_array, out_dir, file_name):
+    img_pil = Image.fromarray(image_array)
+    out_file = os.path.join(out_dir, file_name)
+    if not os.path.splitext(out_file)[1]:  # 检查是否有扩展名
+        out_file += '.jpg'  # 如果没有，添加默认扩展名
+    img_pil.save(out_file)
+    return out_file
 
 def bezier_curve(t, P0, P1, P2, P3):
     """
@@ -51,3 +80,177 @@ def point_to_line_distance(points, p1, p2):
     projections = p1 + t[:, None] * line_vec
     distances = np.linalg.norm(points - projections, axis=1)
     return distances
+
+def fit_contour(contour_simple, contour, max_error=1.0, line_threshold=1.0):
+    """
+    使用最少的三阶贝塞尔曲线和直线拟合点集
+    """
+    structured_points = [contour_simple[0]]
+    i = 0
+    while i < len(contour_simple) - 1:
+        for j in range(len(contour_simple)-1, i, -1):
+            p1 = contour_simple[i]
+            p2 = contour_simple[j]
+            idx1 = np.where((contour == p1).all(axis=1))[0][0]
+            idx2 = np.where((contour == p2).all(axis=1))[0][0]
+            if idx2 >= idx1:
+                segment = contour[idx1:idx2+1]
+            else:
+                segment = np.concatenate((contour[idx1:], contour[:idx2+1]))
+            distances = point_to_line_distance(segment, p1, p2)
+            max_distance = np.max(distances)
+            if max_distance <= line_threshold:
+                structured_points.append(p2)
+                i = j
+                break
+            else:
+                P0, P1, P2, P3 = fit_bezier_segment(segment)
+                error = compute_error(segment, P0, P1, P2, P3)
+                if error <= max_error:
+                    structured_points.append([P1, P2, P3])
+                    i = j
+                    break
+        if i != j :
+            if max_distance <= error :
+                structured_points.append(p2)
+                i = j
+            else :
+                structured_points.append([P1, P2, P3])
+                i = j
+        
+    return structured_points
+
+def points_to_path(structured_points, closed=True):
+    """
+    将结构化的点列表转换为 pydiffvg.Path 对象
+    """
+    if not structured_points:
+        return None
+    points = []
+    num_control_points = []
+    start_point = structured_points[0]
+    points.append(torch.tensor(start_point, dtype=torch.float32))
+    for i, item in enumerate(structured_points[1:]):
+        if isinstance(item, np.ndarray):
+            points.append(torch.tensor(item, dtype=torch.float32))
+            num_control_points.append(0)
+        elif isinstance(item, list) and len(item) == 3:
+            c1, c2, p2 = item
+            points.extend([
+                torch.tensor(c1, dtype=torch.float32),
+                torch.tensor(c2, dtype=torch.float32),
+                torch.tensor(p2, dtype=torch.float32)
+            ])
+            num_control_points.append(2)
+        else:
+            raise ValueError("列表元素必须是 numpy 数组或包含三个 numpy 数组的列表")
+    points.pop()  # 移除最后一个多余点
+    path = pydiffvg.Path(
+        num_control_points=torch.tensor(num_control_points),
+        points=torch.stack(points),
+        stroke_width=torch.tensor(1.0),
+        is_closed=closed
+    )
+    return path
+
+def mask_to_path(mask, max_error=1.0, line_threshold=1.0):
+    """
+    根据二值 mask 提取轮廓并拟合生成 pydiffvg.Path 对象
+    """
+    if not isinstance(mask, np.ndarray):
+        mask = np.array(mask, dtype=np.uint8)
+    else:
+        mask = mask.astype(np.uint8)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    
+    if not contours:
+        return []
+    contour = contours[0].squeeze()
+
+    # 去除重复点，保留原始顺序
+    unique_contour, unique_indices = np.unique(contour, axis=0, return_index=True)
+
+    # 使用索引按原始顺序对去重后的点进行排序
+    contour = contour[np.sort(unique_indices)]
+
+    simplified = cv2.approxPolyDP(contour, 2.0, closed=True).squeeze()
+    idx1 = np.where((contour == simplified[0]).all(axis=1))[0][0]
+    if (contour[idx1-1] != simplified[-1]).any():
+        simplified = np.vstack((simplified, contour[idx1-1]))
+    structured_points = fit_contour(simplified, contour, max_error, line_threshold)
+    path = points_to_path(structured_points, closed=True)
+    return path
+
+def mask_color_Kmeans(image, mask, n_clusters=1):
+    """
+    使用 K-means 聚类从图像对应的 mask 区域中提取主色
+    """
+    mask_np = np.array(mask)
+    masked_pixels = image[mask_np > 0]
+    if len(masked_pixels) == 0:
+        return (0, 0, 0)
+    kmeans = KMeans(n_clusters=n_clusters)
+    kmeans.fit(masked_pixels)
+    main_color = kmeans.cluster_centers_[0].astype(int)
+    return tuple(main_color)
+
+def color_similarity(color1, color2, device):
+    """
+    计算两个颜色之间的欧氏距离，返回一个标量，值越小表示颜色越相似
+    """
+    color1 = color1.to(device)  # 确保 color1 在正确的设备上
+    color2 = color2.to(device)  # 确保 color2 在正确的设备上
+    return torch.sqrt(torch.sum((color1 - color2) ** 2))
+
+def is_mask_included(current_mask, existing_mask, inclusion_threshold=0.8):
+    """
+    判断 current_mask 的大部分是否被 existing_mask 包含，基于交集和最小面积的比值进行判断。
+    如果交集和较小 mask 的比值大于 inclusion_threshold，则认为 current_mask 被包含。
+    
+    参数：
+        current_mask: 当前 mask，二值化后的 numpy 数组。
+        existing_mask: 已有 mask，二值化后的 numpy 数组。
+        inclusion_threshold: 包含判断的阈值，交集和较小面积的比值大于此值时，认为当前 mask 被包含。
+    
+    返回：
+        bool: 如果 current_mask 被 existing_mask 完全包含，返回 True，否则返回 False。
+    """
+    # 将当前 mask 和已有 mask 转换为二值图
+    current_mask_binary = (current_mask > 0).astype(np.uint8)
+    existing_mask_binary = (existing_mask > 0).astype(np.uint8)
+
+    # 计算交集区域
+    intersection = cv2.bitwise_and(current_mask_binary, existing_mask_binary)
+
+    # 计算交集的面积
+    intersection_area = np.sum(intersection)
+
+    # 计算当前 mask 和已有 mask 的面积
+    current_area = np.sum(current_mask_binary)
+    existing_area = np.sum(existing_mask_binary)
+
+    # 获取较小的 mask 面积
+    smaller_area = min(current_area, existing_area)
+
+    # 防止除零错误
+    if smaller_area == 0:
+        return False
+
+    # 计算交集和较小面积的比值
+    inclusion_ratio = intersection_area / smaller_area
+
+    # 判断比值是否大于阈值
+    return inclusion_ratio >= inclusion_threshold
+
+def sort_masks_by_size(mask_list):
+    """
+    根据掩码区域大小排序，面积较大的排在前面
+    """
+    transform = ToTensor()
+    def get_mask_area(mask_path):
+        mask_image = Image.open(mask_path)
+        mask_tensor = transform(mask_image)
+        return (mask_tensor == 1).sum().item()
+    mask_areas = [(mask_path, get_mask_area(mask_path)) for mask_path in mask_list]
+    sorted_mask_areas = sorted(mask_areas, key=lambda x: x[1], reverse=True)
+    return [mask_path for mask_path, _ in sorted_mask_areas]

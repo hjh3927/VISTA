@@ -144,3 +144,17 @@ button:focus,
 input:focus {
     outline: none;
 }
+
+#log-output {
+    font-family: monospace;
+    line-height: 1.5;
+    padding: 8px;
+    background-color: #f9fafb;
+    /* 浅灰背景 */
+    border-radius: 4px;
+}
+
+.dark #log-output {
+    background-color: #2d2d2d;
+    /* 深色模式背景 */
+}
