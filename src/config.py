@@ -3,7 +3,7 @@ import os
 import time
 
 # 项目路径
-PROJECT_PATH = '/home/hjh/repository/AIVbyPS'
+PROJECT_PATH = '/home/hjh/repository/VISTA'
 
 # 数据和输出路径
 FILE_NAME = "test.jpg"

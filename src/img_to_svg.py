@@ -9,7 +9,7 @@ from svg_generator import generate_init_svg, svg_optimize
 from utils import load_and_resize, save_target_image
 
 # 项目路径
-PROJECT_PATH = '/home/hjh/repository/AIVbyPS'
+PROJECT_PATH = '/home/hjh/repository/VISTA'
 
 # 模型配置
 CHECKPOINT_PATH = os.path.join(PROJECT_PATH, "pretrained_checkpoint/sam_vit_h_4b8939.pth")
