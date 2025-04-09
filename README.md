@@ -1,2 +1,2 @@
-# AIVbyPS
-Vectorization of architectural images based on path simplification
+# VISTA
+Vectorization using Image Segmentation and Tuned Optimization Algorithm
