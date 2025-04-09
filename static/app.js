@@ -1,4 +1,4 @@
-// Utility functions for the Vector Converter application 
+// Utility functions for the Vector Converter application
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const browseButton = document.getElementById('browse-button');
     const previewContainer = document.getElementById('preview-container');
     const imagePreview = document.getElementById('image-preview');
-    const fileName = document.getElementById('file-name');
+    const fileNameElement = document.getElementById('file-name');
     const removeFileButton = document.getElementById('remove-file');
     const processButton = document.getElementById('process-button');
     const progressContainer = document.getElementById('progress-container');
@@ -69,34 +69,91 @@ document.addEventListener('DOMContentLoaded', () => {
     const advancedParams = document.getElementById('advanced-params');
     const advancedIcon = document.getElementById('advanced-icon');
     const resetParamsButton = document.getElementById('reset-params');
-    const logOutput = document.getElementById('log-output'); // 新增日志输出元素
+    const logOutput = document.getElementById('log-output');
     const cropNLayersCheckbox = document.getElementById('crop-n-layers');
-
-    let backgroundState = 'grid';
     const isStrokeCheckbox = document.getElementById('is-stroke');
-    isStrokeCheckbox.checked = true;
 
-    // 定义滑块参数及其默认值
+    // 初始化状态
+    let uploadedFile = null;
+    let originalFileName = '';  // 保存上传文件名（不含扩展名）
+    let svgContent = '';        // 保存 SVG 内容
+    let gifUrl = '';            // 保存 GIF URL
+    let backgroundState = 'grid';
+
+    // 默认值初始化
+    isStrokeCheckbox.checked = true;
+    cropNLayersCheckbox.checked = true;
+
+    // 定义滑块参数及其默认值（与后端一致）
     const sliders = [
         { id: 'target-size', valueId: 'target-size-value', default: 512 },
         { id: 'pred-iou-thresh', valueId: 'pred-iou-thresh-value', default: 0.80 },
         { id: 'stability-score-thresh', valueId: 'stability-score-thresh-value', default: 0.90 },
-        { id: 'min-area', valueId: 'min-area-value', default: 50 },               // 新参数
-        { id: 'pre-color-threshold', valueId: 'pre-color-threshold-value', default: 0.0 },  // 新参数
+        { id: 'min-area', valueId: 'min-area-value', default: 10 },
+        { id: 'pre-color-threshold', valueId: 'pre-color-threshold-value', default: 0.01 },
         { id: 'line-threshold', valueId: 'line-threshold-value', default: 1.0 },
         { id: 'bzer-max-error', valueId: 'bzer-max-error-value', default: 1.0 },
         { id: 'learning-rate', valueId: 'learning-rate-value', default: 0.10 },
         { id: 'num-iters', valueId: 'num-iters-value', default: 1000 },
-        { id: 'rm-color-threshold', valueId: 'rm-color-threshold-value', default: 0.0 }  // 新参数
+        { id: 'rm-color-threshold', valueId: 'rm-color-threshold-value', default: 0.10 }
     ];
-    let uploadedFile = null;
-    let svgData = null;
-    let animationUrl = null;
 
+    // 文件上传处理
+    const handleFileUpload = (file) => {
+        if (!isImageFile(file)) {
+            alert('Please select an image file.');
+            return;
+        }
+        if (file.size > 20 * 1024 * 1024) {
+            alert('File size exceeds 20MB limit.');
+            return;
+        }
+        uploadedFile = file;
+        originalFileName = file.name.split('.').slice(0, -1).join('.'); // 提取文件名，不含扩展名
+        fileNameElement.textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imagePreview.src = e.target.result;
+            previewContainer.classList.remove('hidden');
+            processButton.disabled = false;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFileUpload(e.target.files[0]);
+    });
+
+    browseButton.addEventListener('click', () => fileInput.click());
+
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('border-blue-600');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('border-blue-600');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('border-blue-600');
+        if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files[0]);
+    });
+
+    removeFileButton.addEventListener('click', () => {
+        uploadedFile = null;
+        originalFileName = '';
+        fileInput.value = '';
+        previewContainer.classList.add('hidden');
+        processButton.disabled = true;
+    });
+
+    // 参数实时更新显示值
     sliders.forEach(slider => {
         const inputElement = document.getElementById(slider.id);
         const valueElement = document.getElementById(slider.valueId);
-        valueElement.textContent = inputElement.value;
+        valueElement.textContent = inputElement.value; // 初始化显示
         inputElement.addEventListener('input', () => {
             valueElement.textContent = inputElement.value;
         });
@@ -110,36 +167,17 @@ document.addEventListener('DOMContentLoaded', () => {
             inputElement.value = slider.default;
             valueElement.textContent = slider.default;
         });
-        isStrokeCheckbox.checked = true;      // 重置 Use Stroke Model
-        cropNLayersCheckbox.checked = true;   // 重置 Crop N Layers
+        isStrokeCheckbox.checked = true;
+        cropNLayersCheckbox.checked = true;
     });
 
+    // 高级参数切换
     advancedToggle.addEventListener('click', () => {
         advancedParams.classList.toggle('hidden');
         advancedIcon.classList.toggle('rotate-90');
     });
 
-    fileInput.addEventListener('change', handleFileSelect);
-    browseButton.addEventListener('click', () => fileInput.click());
-    dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.classList.add('border-blue-600');
-    });
-    dropzone.addEventListener('dragleave', () => {
-        dropzone.classList.remove('border-blue-600');
-    });
-    dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('border-blue-600');
-        if (e.dataTransfer.files.length) handleFileFromEvent(e.dataTransfer.files[0]);
-    });
-    removeFileButton.addEventListener('click', () => {
-        uploadedFile = null;
-        fileInput.value = '';
-        previewContainer.classList.add('hidden');
-        processButton.disabled = true;
-    });
-
+    // 切换背景
     toggleBackgroundButton.addEventListener('click', () => {
         svgPreviewContainer.classList.remove('bg-grid', 'bg-white', 'bg-black');
         if (backgroundState === 'grid') {
@@ -147,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
             backgroundState = 'white';
         } else if (backgroundState === 'white') {
             svgPreviewContainer.classList.add('bg-black');
-            backgroundState = 'transparent';
+            backgroundState = 'black';
         } else {
             svgPreviewContainer.classList.add('bg-grid');
             backgroundState = 'grid';
@@ -155,78 +193,51 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Background state:', backgroundState);
     });
 
+    // 下载 SVG
     downloadSvgButton.addEventListener('click', () => {
-        if (!svgData) return;
-        const blob = new Blob([svgData], { type: 'image/svg+xml' });
+        if (!svgContent) return;
+        const blob = new Blob([svgContent], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'vectorized_image.svg';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${originalFileName}.svg`; // 使用上传文件名
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         URL.revokeObjectURL(url);
     });
 
+    // 重播动画
     replayAnimationButton.addEventListener('click', () => {
-        if (!animationUrl) return;
+        if (!gifUrl) return;
         animationPreview.src = '';
         setTimeout(() => {
-            animationPreview.src = animationUrl;
+            animationPreview.src = gifUrl;
         }, 50);
     });
 
+    // 下载 GIF
     downloadGifButton.addEventListener('click', async () => {
-        if (!animationUrl) return;
-        try {
-            const response = await fetch(animationUrl);
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'animation.gif';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error('Failed to download GIF:', error);
-            alert('Failed to download GIF. Please try again.');
-        }
+        if (!gifUrl) return;
+        const response = await fetch(gifUrl);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${originalFileName}.gif`; // 使用上传文件名
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     });
 
-    function handleFileSelect(e) {
-        if (e.target.files.length) {
-            handleFileFromEvent(e.target.files[0]);
-        }
-    }
-
-    function handleFileFromEvent(file) {
-        if (!isImageFile(file)) {
-            alert('Please select an image file.');
-            return;
-        }
-        if (file.size > 10 * 1024 * 1024) {
-            alert('File size exceeds 10MB limit.');
-            return;
-        }
-        uploadedFile = file;
-        fileName.textContent = file.name;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            imagePreview.src = e.target.result;
-            previewContainer.classList.remove('hidden');
-            processButton.disabled = false;
-        };
-        reader.readAsDataURL(file);
-    }
-
+    // 模拟进度条
     function simulateProgress() {
         let progress = 0;
         const totalTime = 35000;
         const targetProgress = 99;
         const intervalTime = 200;
-        const increment = (targetProgress / (totalTime / intervalTime));
+        const increment = targetProgress / (totalTime / intervalTime);
 
         progressBar.style.width = `${progress}%`;
         progressPercentage.textContent = `${Math.round(progress)}%`;
@@ -249,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // WebSocket
+    // WebSocket 日志
     const ws = new WebSocket(`ws://${window.location.host}/ws/logs`);
     ws.onopen = () => {
         console.log('WebSocket connected');
@@ -257,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     ws.onmessage = (event) => {
         const message = event.data;
-        if (message !== "Heartbeat" && !message.includes("INFO -")) {  // 忽略日志格式的消息
+        if (message !== "Heartbeat" && !message.includes("INFO -")) {
             console.log('Received output:', message);
             logOutput.textContent += `${message}\n`;
             logOutput.scrollTop = logOutput.scrollHeight;
@@ -272,9 +283,10 @@ document.addEventListener('DOMContentLoaded', () => {
         logOutput.textContent += 'Log stream closed.\n';
     };
 
+    // 处理图片
     processButton.addEventListener('click', async () => {
         console.log('Process button clicked');
-        logOutput.textContent = ''; // 清空日志
+        logOutput.textContent = '';
         if (!uploadedFile) return;
 
         progressContainer.classList.remove('hidden');
@@ -288,8 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 target_size: parseInt(document.getElementById('target-size').value),
                 pred_iou_thresh: parseFloat(document.getElementById('pred-iou-thresh').value),
                 stability_score_thresh: parseFloat(document.getElementById('stability-score-thresh').value),
-                crop_n_layers: document.getElementById('crop-n-layers').checked ? 1 : 0,
-                min_area: parseFloat(document.getElementById('min-area').value),
+                crop_n_layers: cropNLayersCheckbox.checked ? 1 : 0,
+                min_area: parseInt(document.getElementById('min-area').value),
                 pre_color_threshold: parseFloat(document.getElementById('pre-color-threshold').value),
                 line_threshold: parseFloat(document.getElementById('line-threshold').value),
                 bzer_max_error: parseFloat(document.getElementById('bzer-max-error').value),
@@ -306,7 +318,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const completeProgress = simulateProgress();
-
             const response = await fetch('/process', {
                 method: 'POST',
                 body: formData
@@ -332,30 +343,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 参数实时更新显示值
-    ['target-size', 'pred-iou-thresh', 'stability-score-thresh', 'min-area', 'pre-color-threshold', 'line-threshold', 'bzer-max-error', 'learning-rate', 'num-iters', 'rm-color-threshold'].forEach(id => {
-        const input = document.getElementById(id);
-        const valueSpan = document.getElementById(`${id}-value`);
-        input.addEventListener('input', () => {
-            valueSpan.textContent = input.value;
-        });
-    });
-
-    function handleProcessResult(result) {
-        svgData = result.svg;
-        animationUrl = result.animationUrl + '?t=' + new Date().getTime();
-        svgPreview.innerHTML = svgData;
-        animationPreview.src = '';
-        setTimeout(() => {
-            animationPreview.src = animationUrl;
-        }, 50);
+    // 处理结果
+    function handleProcessResult({ svg, animationUrl }) {
         initialState.classList.add('hidden');
         resultsContainer.classList.remove('hidden');
+        svgPreview.innerHTML = svg;
+        animationPreview.src = animationUrl;
+
+        svgContent = svg;  // 保存 SVG 内容
+        gifUrl = animationUrl;  // 保存 GIF URL
+
+        progressContainer.classList.add('hidden');
         processButton.disabled = false;
     }
 
+    // 初始化 Lucide 图标
     lucide.createIcons();
 
+    // 主题切换
     if (localStorage.getItem('theme') === 'dark' ||
         (window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem('theme'))) {
         document.documentElement.classList.add('dark');

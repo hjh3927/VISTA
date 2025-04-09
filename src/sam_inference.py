@@ -5,8 +5,7 @@ import numpy as np
 from PIL import Image
 import torch
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-from config import DEVICE
-from utils import color_similarity, is_mask_included, mask_color_Kmeans, sort_masks_by_size
+from utils import color_similarity, find_background_seed, is_mask_included, mask_color_Kmeans
 
 def sam(image, masks_path, pred_iou_thresh=0.80, stability_score_thresh=0.90, crop_n_layers=1, model_type='vit_h', checkpoint_path='', device='cpu'):
     """
@@ -30,11 +29,26 @@ def sam(image, masks_path, pred_iou_thresh=0.80, stability_score_thresh=0.90, cr
     masks = mask_generator.generate(image)
     print(f"生成 {len(masks)} 个掩码，耗时--------------->: {time.time()-st:.2f} s")
 
-    mask_path_list = []
+     # 根据掩码的面积进行排序
+    mask_area_list = []
+
     for i, mask in enumerate(masks):
-        image_data = np.where(mask['segmentation'], 255, 0).astype(np.uint8)
-        mask_img = Image.fromarray(image_data)
-        mask_file_path = os.path.join(masks_path, f'{i}.png')
+        # 获取掩码的二值化图像
+        mask_data = np.where(mask['segmentation'], 255, 0).astype(np.uint8)
+        # 计算每个掩码的面积（即图像中值为 255 的像素数量）
+        area = np.sum(mask_data == 255)
+
+        # 将面积和对应的掩码索引保存到列表中
+        mask_area_list.append((i, area, mask_data))
+
+    # 按照面积从大到小排序
+    sorted_mask_area_list = sorted(mask_area_list, key=lambda x: x[1], reverse=True)
+
+    # 按照排序后的顺序保存掩码，使用新的排序顺序索引作为文件名
+    mask_path_list = []
+    for new_idx, (orig_idx, area, mask_data) in enumerate(sorted_mask_area_list):
+        mask_img = Image.fromarray(mask_data)
+        mask_file_path = os.path.join(masks_path, f'{new_idx}.png')
         mask_img.save(mask_file_path)
         mask_path_list.append(mask_file_path)
 
@@ -67,13 +81,19 @@ def preprocessing_mask(mask_img_list, output_path, target_image, min_area=100, i
     
     masks = [cv2.imread(p, cv2.IMREAD_GRAYSCALE) for p in mask_img_list]
     processed_masks = []  # 已处理的掩码列表
-    pre_mask_list = []   # 存储 (面积, 掩码, 原始cnt) 的列表
+    pre_mask_list = []   # 存储 (面积, 掩码) 的列表
     index_mask_dict = {} # 原始索引到掩码的映射
     
     cnt = 1
 
     for count, image in enumerate(masks):
-        num_labels, labels = cv2.connectedComponents(image)
+        flood_fill_image = image.copy()
+        h, w = image.shape[:2]
+        mask = np.zeros((h+2, w+2), np.uint8)
+        seed = find_background_seed(flood_fill_image)
+        cv2.floodFill(flood_fill_image, mask, seed, 255)
+        filled_image = cv2.bitwise_or(image, cv2.bitwise_not(flood_fill_image))
+        num_labels, labels = cv2.connectedComponents(filled_image)
         
         for i in range(1, num_labels):
             single_region = np.where(labels == i, 255, 0).astype(np.uint8)

@@ -4,7 +4,6 @@ import cv2
 import pydiffvg
 import torch
 
-
 from sam_inference import sam, preprocessing_mask
 from svg_generator import generate_init_svg, svg_optimize
 from utils import load_and_resize, save_target_image
@@ -61,11 +60,18 @@ def img_to_svg(image_path, target_size, pred_iou_thresh, stability_score_thresh,
     frames = []
     # 初始化 SVG
     frames = []
-    shapes, shape_groups, frames, index_mask_dict = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, frames, out_svg_path=INIT_SVG_PATH, max_error=bzer_max_error, line_threshold=line_threshold)
+    shapes, shape_groups, frames, index_mask_dict = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, frames, out_svg_path=INIT_SVG_PATH, max_error=bzer_max_error, line_threshold=line_threshold, is_stroke=is_stroke)
     
     # 优化 SVG
-    svg_path, gif_path = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, index_mask_dict, is_stroke=is_stroke, learning_rate=learning_rate, num_iters=num_iters, rm_color_threshold=rm_color_threshold)
+    svg_path, gif_path, shapes, shape_groups, current_loss = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, index_mask_dict, is_stroke=is_stroke, learning_rate=learning_rate, num_iters=num_iters, rm_color_threshold=rm_color_threshold)
     
     print(f"处理完成，输出目录：{OUT_PATH}")
-    print(f"总耗时--------------->: {time.time()-st:.2f} s")
+
+    print(f"===========================================")
+    print(f'target_size : {target_size}, pred_iou_thresh : {pred_iou_thresh}, stability_score_thresh : {stability_score_thresh}, crop_n_layers : {crop_n_layers}, min_area :{min_area}, pre_color_threshold : {pre_color_threshold}')
+    print(f'line_threshold : {line_threshold}, bzer_max_error : {bzer_max_error}, learning_rate : {learning_rate}, is_stroke : {is_stroke}, num_iters : {num_iters}, rm_color_threshold : {rm_color_threshold}')
+    print(f'Time Consuming: {time.time()-st:.2f} s')
+    print(f'Shapes: {len(shapes)}')
+    print(f"MES Loss: {current_loss:.4f}")
+    print(f"===========================================")
     return svg_path, gif_path

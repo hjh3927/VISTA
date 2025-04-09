@@ -30,6 +30,18 @@ def save_target_image(image_array, out_dir, file_name):
     img_pil.save(out_file)
     return out_file
 
+def find_background_seed(image):
+    """
+    找到图像边界上第一个为0的像素作为背景种子
+    """
+    h, w = image.shape
+    border_pixels = [(x, 0) for x in range(w)] + [(x, h-1) for x in range(w)] + \
+                    [(0, y) for y in range(h)] + [(w-1, y) for y in range(h)]
+    for seed in border_pixels:
+        if image[seed[1], seed[0]] == 0:
+            return seed
+    return (0, 0)
+
 def bezier_curve(t, P0, P1, P2, P3):
     """
     计算三阶贝塞尔曲线上的点，t 为 [0,1] 间的参数数组
@@ -181,17 +193,26 @@ def mask_to_path(mask, max_error=1.0, line_threshold=1.0):
     path = points_to_path(structured_points, closed=True)
     return path
 
-def mask_color_Kmeans(image, mask, n_clusters=1):
+def mask_color_Kmeans(image, mask, n_clusters=1, threshold=0.9):
     """
-    使用 K-means 聚类从图像对应的 mask 区域中提取主色
+    使用 K-means 聚类从图像对应的 mask 区域中提取主色，动态调整聚类数量
     """
     mask_np = np.array(mask)
     masked_pixels = image[mask_np > 0]
-    if len(masked_pixels) == 0:
-        return (0, 0, 0)
+    
+    # 计算 mask 像素占图像总像素的比例
+    total_pixels = image.shape[0] * image.shape[1]
+    mask_ratio = len(masked_pixels) / total_pixels
+    
+    # 如果 mask 占比超过阈值，增加聚类数量
+    if mask_ratio > threshold:
+        return (255, 255, 255)  
+    
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans.fit(masked_pixels)
+    
     main_color = kmeans.cluster_centers_[0].astype(int)
+    
     return tuple(main_color)
 
 def color_similarity(color1, color2, device):
@@ -241,16 +262,3 @@ def is_mask_included(current_mask, existing_mask, inclusion_threshold=0.8):
 
     # 判断比值是否大于阈值
     return inclusion_ratio >= inclusion_threshold
-
-def sort_masks_by_size(mask_list):
-    """
-    根据掩码区域大小排序，面积较大的排在前面
-    """
-    transform = ToTensor()
-    def get_mask_area(mask_path):
-        mask_image = Image.open(mask_path)
-        mask_tensor = transform(mask_image)
-        return (mask_tensor == 1).sum().item()
-    mask_areas = [(mask_path, get_mask_area(mask_path)) for mask_path in mask_list]
-    sorted_mask_areas = sorted(mask_areas, key=lambda x: x[1], reverse=True)
-    return [mask_path for mask_path, _ in sorted_mask_areas]

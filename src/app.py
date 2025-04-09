@@ -70,14 +70,14 @@ async def process_image(
     pred_iou_thresh: float = Form(0.80),
     stability_score_thresh: float = Form(0.90),
     crop_n_layers: int = Form(1),
-    min_area: int = Form(50),
-    pre_color_threshold: float = Form(0.0),
+    min_area: int = Form(10),
+    pre_color_threshold: float = Form(0.01),
     line_threshold: float = Form(1.0),
     bzer_max_error: float = Form(1.0),
     learning_rate: float = Form(0.1),
     is_stroke: bool = Form(True),
     num_iters: int = Form(1000),
-    rm_color_threshold: float = Form(0.0)
+    rm_color_threshold: float = Form(0.10)
 ):
     output = WebSocketOutput()
     logger.info(f"Received file: {file.filename}")

@@ -39,13 +39,18 @@ def main():
     shape_groups = []
     frames = []
     # 初始化 SVG
-    shapes, shape_groups, frames, index_mask_dict = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, frames, out_svg_path=INIT_SVG_PATH, max_error=BEZIER_MAX_ERROR, line_threshold=LINE_THRESHOLD)
+    shapes, shape_groups, frames, index_mask_dict = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, frames, out_svg_path=INIT_SVG_PATH, max_error=BEZIER_MAX_ERROR, line_threshold=LINE_THRESHOLD, is_stroke=IS_STROKE)
     
     # 优化 SVG
-    svg_path, gif_path = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, index_mask_dict, is_stroke=IS_STROKE, learning_rate=LEARNING_RATE, num_iters=NUM_ITERS, rm_color_threshold=RM_COLOR_THRESHOLD)
+    svg_path, gif_path, shapes, shape_groups, current_loss = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, index_mask_dict, is_stroke=IS_STROKE, learning_rate=LEARNING_RATE, num_iters=NUM_ITERS, rm_color_threshold=RM_COLOR_THRESHOLD)
     
     print(f"处理完成，输出目录：{OUT_PATH}")
-    print(f"总耗时--------------->: {time.time()-st:.2f} s")
+
+    print(f"===========================================")
+    print(f'Time Consuming: {time.time()-st:.2f} s')
+    print(f'Shapes: {len(shapes)}')
+    print(f"MES Loss: {current_loss:.4f}")
+    print(f"===========================================")
 
 if __name__ == '__main__':
     main()

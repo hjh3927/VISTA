@@ -8,7 +8,7 @@ from PIL import Image
 from utils import color_similarity, is_mask_included, mask_color_Kmeans, mask_to_path
 
 
-def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_image, frames, out_svg_path, max_error=1.0, line_threshold=1.0, color_threshold=0.08, min_area=300):
+def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_image, frames, out_svg_path, max_error=1.0, line_threshold=1.0, is_stroke=True,):
     """
     根据预处理后的 mask 生成初始 SVG 每个 mask 对应一个路径，赋予颜色，
     并在初始化过程中生成渲染帧，存入 frames 列表中（便于生成动图）。
@@ -44,24 +44,30 @@ def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_i
         mask_image = Image.open(mask_path).convert('L')
         path = mask_to_path(mask_image, max_error, line_threshold)
         path.points = path.points.to(device)
+        rgb_color = mask_color_Kmeans(target_image, mask_image)
+        color = torch.zeros(4, device=device)
+        color[:3] = torch.tensor(rgb_color, device=device) / 255.0
+        color[3] = 1.0
         group_t = pydiffvg.ShapeGroup(
                         shape_ids=torch.tensor([0]),  # 路径 ID
-                        fill_color=torch.tensor([1.0,0,0,1.0]),  
-                        # fill_color=torch.tensor([1.0,1.0,1.0,1.0]), 
+                        fill_color=color,
                         stroke_color=torch.tensor([0.0, 0.0, 0.0, 1.0])  # 黑色描边
                     )
         shapes_t = [path]
         shape_groups_t = [group_t]
         
-        rgb_color = mask_color_Kmeans(target_image, mask_image)
-        color = torch.zeros(4, device=device)
-        color[:3] = torch.tensor(rgb_color, device=device) / 255.0
-        color[3] = 1.0
-        group = pydiffvg.ShapeGroup(
-            shape_ids=torch.tensor([i], device=device),
-            fill_color=color,
-            stroke_color=torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
-        )
+        if is_stroke :
+            group = pydiffvg.ShapeGroup(
+                shape_ids=torch.tensor([i], device=device),
+                fill_color=color,
+                stroke_color=torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
+            )
+        else:
+            group = pydiffvg.ShapeGroup(
+                shape_ids=torch.tensor([i], device=device),
+                fill_color=color,
+                stroke_color=torch.tensor([0.0, 0.0, 0.0, 0.0], device=device)
+            )
         shapes.append(path)
         shape_groups.append(group)
 
@@ -233,4 +239,4 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frame
     imageio.mimsave(gif_path, frames, duration=15)
 
     print(f"SVG 优化耗时--------------->: {time.time()-st:.2f} s")
-    return svg_path, gif_path
+    return svg_path, gif_path, shapes, shape_groups, current_loss
