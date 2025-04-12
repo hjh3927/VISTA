@@ -10,17 +10,31 @@ from torchvision.transforms import ToTensor
 
 def load_and_resize(image_path: str, target_size: int = 512):
     """
-    加载并缩放图像，保持宽高比，返回 numpy 数组
+    加载图像并转换为 RGB，如果有透明度则用白色背景填充。
+    然后按比例缩放图像，返回 numpy 数组。
     """
     print("预处理目标图像...")
-    image = Image.open(image_path).convert("RGB") 
-    w, h = image.size
+    image = Image.open(image_path)
 
+    # 如果是调色板图像，先转成 RGBA
+    if image.mode == "P":
+        image = image.convert("RGBA")
+
+    # 如果是带透明度的图像，使用白色背景合成
+    if image.mode == "RGBA":
+        background = Image.new("RGB", image.size, (255, 255, 255))  # 白色背景
+        image = Image.alpha_composite(background.convert("RGBA"), image).convert("RGB")
+    else:
+        image = image.convert("RGB")
+
+    # 缩放图像，保持宽高比
+    w, h = image.size
     scale = target_size / max(w, h)
-    target_size = (int(w*scale), int(h*scale))    
+    target_size = (int(w * scale), int(h * scale))
     resized = image.resize(target_size, Image.Resampling.LANCZOS)
-    
+
     return np.array(resized)
+
   
 def save_target_image(image_array, out_dir, file_name):
     img_pil = Image.fromarray(image_array)

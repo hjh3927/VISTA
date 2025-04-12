@@ -6,7 +6,7 @@ import time
 PROJECT_PATH = '/home/hjh/repository/VISTA'
 
 # 数据和输出路径
-FILE_NAME = "test.jpg"
+FILE_NAME = "emoji_u1f1e7.jpg"
 DATA_PATH = os.path.join(PROJECT_PATH, "data/demo", FILE_NAME)
 T = time.time()
 OUT_PATH = os.path.join(PROJECT_PATH, "out", f"{FILE_NAME}-{int(T)%20}")
@@ -28,7 +28,7 @@ TARGET_SIZE = 512
 PREDICTION_IOU_THRESHOLD = 0.80
 STABILITY_SCORE_THRESHOLD = 0.90
 CROP_N_LAYERS = 1
-PRE_COLOR_THRESHOLD = 0.1
+PRE_COLOR_THRESHOLD = 0.01
 MIN_AREA = 10
 BEZIER_MAX_ERROR = 1.0
 LINE_THRESHOLD = 1.0

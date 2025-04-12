@@ -5,6 +5,7 @@ import logging
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.websockets import WebSocketState
 from starlette.websockets import WebSocketDisconnect
 from img_to_svg import img_to_svg 
 import os
@@ -112,11 +113,23 @@ async def websocket_logs(websocket: WebSocket):
     logger.info("WebSocket client connected")
     try:
         while True:
-            await websocket.send_text("Heartbeat")
+            # 如果 WebSocket 已断开，退出循环
+            if websocket.client_state != WebSocketState.CONNECTED:
+                logger.info("WebSocket not connected anymore, stopping heartbeat.")
+                break
+
+            try:
+                await websocket.send_text("Heartbeat")
+            except RuntimeError as e:
+                logger.warning(f"Heartbeat failed: {e}")
+                break
+
             await asyncio.sleep(10)
+
     except WebSocketDisconnect:
-        connected_clients.remove(websocket)
-        logger.info("WebSocket client disconnected")
+        logger.info("WebSocket client disconnected (via exception)")
+    finally:
+        connected_clients.discard(websocket)
 
 class WebSocketHandler(logging.Handler):
     async def emit_async(self, record):

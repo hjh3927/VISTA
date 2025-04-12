@@ -377,4 +377,53 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('theme', 'dark');
         }
     });
+
+    function createLogWebSocket() {
+        let ws;
+        let heartbeatInterval;
+        const reconnectDelay = 5000; // 重连间隔 5 秒
+
+        function connect() {
+            ws = new WebSocket(`ws://${window.location.host}/ws/logs`);
+
+            ws.onopen = () => {
+                console.log('✅ WebSocket connected');
+                logOutput.textContent = 'Connected to log stream.\n';
+
+                // 启动心跳：客户端每 10 秒发一次 ping
+                heartbeatInterval = setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send('ping');
+                    }
+                }, 10000);
+            };
+
+            ws.onmessage = (event) => {
+                const message = event.data;
+                // 过滤掉心跳和不重要的日志
+                if (message !== "Heartbeat" && !message.includes("INFO -")) {
+                    console.log('🟢 Log:', message);
+                    logOutput.textContent += `${message}\n`;
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+                logOutput.textContent += 'Error connecting to log stream.\n';
+                ws.close(); // 出错后触发 onclose
+            };
+
+            ws.onclose = () => {
+                console.warn('⚠️ WebSocket closed. Reconnecting in 5s...');
+                logOutput.textContent += 'Log stream closed. Reconnecting...\n';
+                clearInterval(heartbeatInterval);
+                setTimeout(connect, reconnectDelay); // 自动重连
+            };
+        }
+
+        connect(); // 初始连接
+    }
+    createLogWebSocket(); // 创建 WebSocket 连接    
+
 });
