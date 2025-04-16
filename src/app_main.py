@@ -89,9 +89,9 @@ def img_to_svg(image_path, target_size, pred_iou_thresh, stability_score_thresh,
         "is_stroke": is_stroke,
         "num_iters": num_iters,
         "rm_color_threshold": rm_color_threshold,
-        "time_consuming": all_time,
+        "time_consuming": round(all_time, 4),
         "shapes": shapes_count,
-        "mes_loss": current_loss
+        "mes_loss": round(current_loss, 4),
     }
 
     # 保存到 ./temp_outputs/result.json

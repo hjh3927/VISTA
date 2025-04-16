@@ -6,7 +6,7 @@ import time
 PROJECT_PATH = '/home/hjh/repository/VISTA'
 
 # 数据和输出路径
-FILE_NAME = "4.jpg"
+FILE_NAME = "9.jpg"
 DATA_PATH = os.path.join(PROJECT_PATH, "dataset/figures", FILE_NAME)
 T = time.time()
 OUT_PATH = os.path.join(PROJECT_PATH, "out", f"{FILE_NAME}-{int(T)%20}")

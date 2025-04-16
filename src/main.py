@@ -69,9 +69,9 @@ def main():
         "is_stroke": IS_STROKE,
         "num_iters": NUM_ITERS,
         "rm_color_threshold": RM_COLOR_THRESHOLD,
-        "time_consuming": f"{all_time:.2f} s",
+        "time_consuming": round(all_time, 4),
         "shapes": shapes_count,
-        "mes_loss": f"{current_loss:.4f}",
+        "mes_loss": round(current_loss, 4),
     }
 
     # 保存到 ./temp_outputs/result.json

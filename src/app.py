@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import logging
-from img_to_svg import img_to_svg 
+from app_main import img_to_svg 
 import os
 import shutil
 import tempfile
