@@ -20,7 +20,7 @@ def sam(image, masks_path, pred_iou_thresh=0.80, stability_score_thresh=0.90, cr
         pred_iou_thresh=pred_iou_thresh,           # 略微降低 IoU 阈值，防止过多小碎片
         stability_score_thresh=stability_score_thresh,    # 提高稳定性阈值，过滤低质量掩码
         crop_n_layers=crop_n_layers,                # 提高裁剪层数，使得整体结构更连贯
-        min_mask_region_area=50         # 增大最小区域面积，去除极小碎片
+        min_mask_region_area=10         # 增大最小区域面积，去除极小碎片
     )
 
     st = time.time()

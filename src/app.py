@@ -1,12 +1,7 @@
-import asyncio
-from contextlib import redirect_stdout
-from io import StringIO
-import logging
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, WebSocket
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.websockets import WebSocketState
-from starlette.websockets import WebSocketDisconnect
+import logging
 from img_to_svg import img_to_svg 
 import os
 import shutil
@@ -15,12 +10,18 @@ import time
 
 app = FastAPI()
 
-# 配置日志
-logging.basicConfig(level=logging.INFO)
+# 配置自定义日志记录器
 logger = logging.getLogger("VectorConverter")
 logger.setLevel(logging.INFO)
 
-connected_clients = set()
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# 关闭日志传播
+logger.propagate = False  # 阻止日志传播到根日志记录器
 
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "../static")), name="static")
 if not os.path.exists("temp_outputs"):
@@ -32,33 +33,31 @@ async def read_root():
     with open(os.path.join(os.path.dirname(__file__), "../static/index.html"), "r", encoding="utf-8") as f:
         return f.read()
 
-# 自定义输出流
-class WebSocketOutput(StringIO):
-    def __init__(self):
-        super().__init__()
-        self.buffer = []
-
-    async def write_async(self, message):
-        self.buffer.append(message)
-        for client in list(connected_clients):
-            try:
-                await client.send_text(message.strip())
-            except Exception as e:
-                logger.error(f"Failed to send output: {e}")
-                connected_clients.remove(client)
-
-    def write(self, message):
-        asyncio.run_coroutine_threadsafe(self.write_async(message), asyncio.get_event_loop())
-
-    def flush(self):
-        pass
-
 async def run_algorithm(temp_img_path, target_size, pred_iou_thresh, stability_score_thresh, crop_n_layers, min_area, pre_color_threshold, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters, rm_color_threshold):
     try:
-        svg_path, gif_path = img_to_svg(temp_img_path, target_size, pred_iou_thresh, stability_score_thresh, crop_n_layers, min_area, pre_color_threshold, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters, rm_color_threshold)
+        svg_path, gif_path, output,  all_time, shapes_count, mes_loss = img_to_svg(temp_img_path, target_size, pred_iou_thresh, stability_score_thresh, crop_n_layers, min_area, pre_color_threshold, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters, rm_color_threshold)
         svg_url = svg_path.replace(os.path.abspath("temp_outputs"), "/temp_outputs")
         gif_url = gif_path.replace(os.path.abspath("temp_outputs"), "/temp_outputs")
-        return {"svg_url": svg_url, "gif_url": gif_url}
+        # 整理需要返回的信息
+        log_info = {
+            "output_directory": output,  # 输出目录
+            "target_size": target_size,
+            "pred_iou_thresh": pred_iou_thresh,
+            "stability_score_thresh": stability_score_thresh,
+            "crop_n_layers": crop_n_layers,
+            "min_area": min_area,
+            "pre_color_threshold": pre_color_threshold,
+            "line_threshold": line_threshold,
+            "bzer_max_error": bzer_max_error,
+            "learning_rate": learning_rate,
+            "is_stroke": is_stroke,
+            "num_iters": num_iters,
+            "rm_color_threshold": rm_color_threshold,
+            "time_consuming": f"{all_time:.2f} s",  # 处理耗时
+            "shapes": shapes_count,  # 形状数量
+            "mes_loss": f"{mes_loss:.4f}"  # 损失值
+        }
+        return {"svg_url": svg_url, "gif_url": gif_url, "log_info": log_info} 
     except Exception as e:
         logger.error(f"Algorithm failed: {str(e)}")
         raise
@@ -80,7 +79,6 @@ async def process_image(
     num_iters: int = Form(1000),
     rm_color_threshold: float = Form(0.10)
 ):
-    output = WebSocketOutput()
     logger.info(f"Received file: {file.filename}")
     logger.info("Starting image processing...")
 
@@ -89,10 +87,9 @@ async def process_image(
         shutil.copyfileobj(file.file, temp_img)
         temp_img_path = temp_img.name
 
-    # 重定向 print 输出并调用算法
+    # 调用算法，直接输出到控制台
     try:
-        with redirect_stdout(output):
-            result = await run_algorithm(temp_img_path, target_size, pred_iou_thresh, stability_score_thresh, crop_n_layers, min_area, pre_color_threshold, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters, rm_color_threshold)
+        result = await run_algorithm(temp_img_path, target_size, pred_iou_thresh, stability_score_thresh, crop_n_layers, min_area, pre_color_threshold, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters, rm_color_threshold)
     except Exception as e:
         logger.error(f"Processing failed: {str(e)}")
         return JSONResponse(status_code=500, content={"detail": f"Processing failed: {str(e)}"})
@@ -105,56 +102,6 @@ async def process_image(
     
     logger.info("Image processing completed.")
     return JSONResponse(content=result)
-
-@app.websocket("/ws/logs")
-async def websocket_logs(websocket: WebSocket):
-    await websocket.accept()
-    connected_clients.add(websocket)
-    logger.info("WebSocket client connected")
-    try:
-        while True:
-            # 如果 WebSocket 已断开，退出循环
-            if websocket.client_state != WebSocketState.CONNECTED:
-                logger.info("WebSocket not connected anymore, stopping heartbeat.")
-                break
-
-            try:
-                await websocket.send_text("Heartbeat")
-            except RuntimeError as e:
-                logger.warning(f"Heartbeat failed: {e}")
-                break
-
-            await asyncio.sleep(10)
-
-    except WebSocketDisconnect:
-        logger.info("WebSocket client disconnected (via exception)")
-    finally:
-        connected_clients.discard(websocket)
-
-class WebSocketHandler(logging.Handler):
-    async def emit_async(self, record):
-        log_entry = self.format(record)
-        for client in list(connected_clients):
-            try:
-                await client.send_text(log_entry)
-            except Exception as e:
-                logger.error(f"Failed to send log: {e}")
-                connected_clients.remove(client)
-
-    def emit(self, record):
-        asyncio.run_coroutine_threadsafe(self.emit_async(record), asyncio.get_event_loop())
-
-# 配置日志处理器
-ws_handler = WebSocketHandler()
-ws_handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-ws_handler.setFormatter(formatter)
-logger.addHandler(ws_handler)
-
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
 
 def delete_file_after_delay(file_path, delay=300):
     time.sleep(delay)

@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import cv2
@@ -42,8 +43,9 @@ def main():
     shapes, shape_groups, frames, index_mask_dict = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, frames, out_svg_path=INIT_SVG_PATH, max_error=BEZIER_MAX_ERROR, line_threshold=LINE_THRESHOLD, is_stroke=IS_STROKE)
     
     # 优化 SVG
-    svg_path, gif_path, shapes, shape_groups, current_loss = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, index_mask_dict, is_stroke=IS_STROKE, learning_rate=LEARNING_RATE, num_iters=NUM_ITERS, rm_color_threshold=RM_COLOR_THRESHOLD)
-    
+    svg_path, gif_path, shapes, shape_groups, current_loss = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, index_mask_dict, is_stroke=IS_STROKE, Points_lr=LEARNING_RATE, num_iters=NUM_ITERS, rm_color_threshold=RM_COLOR_THRESHOLD)
+    all_time = time.time()-st
+    shapes_count = len(shapes)   
     print(f"处理完成，输出目录：{OUT_PATH}")
 
     print(f"===========================================")
@@ -51,6 +53,35 @@ def main():
     print(f'Shapes: {len(shapes)}')
     print(f"MES Loss: {current_loss:.4f}")
     print(f"===========================================")
+
+    # 打包信息成 JSON 格式并保存
+    result_info = {
+        "output_directory": OUT_PATH,
+        "target_size": TARGET_SIZE,
+        "pred_iou_thresh": PREDICTION_IOU_THRESHOLD,
+        "stability_score_thresh": STABILITY_SCORE_THRESHOLD,
+        "crop_n_layers": CROP_N_LAYERS,
+        "min_area": MIN_AREA,
+        "pre_color_threshold": PRE_COLOR_THRESHOLD,
+        "line_threshold": LINE_THRESHOLD,
+        "bzer_max_error": BEZIER_MAX_ERROR,
+        "learning_rate": LEARNING_RATE,
+        "is_stroke": IS_STROKE,
+        "num_iters": NUM_ITERS,
+        "rm_color_threshold": RM_COLOR_THRESHOLD,
+        "time_consuming": f"{all_time:.2f} s",
+        "shapes": shapes_count,
+        "mes_loss": f"{current_loss:.4f}",
+    }
+
+    # 保存到 ./temp_outputs/result.json
+    result_file_path = os.path.join(OUT_PATH, 'result.json')
+    try:
+        with open(result_file_path, 'w', encoding='utf-8') as f:
+            json.dump(result_info, f, indent=4, ensure_ascii=False)
+        print(f"JSON result saved to {result_file_path}")
+    except Exception as e:
+        print(f"Failed to save JSON result: {str(e)}")
 
 if __name__ == '__main__':
     main()

@@ -69,7 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const advancedParams = document.getElementById('advanced-params');
     const advancedIcon = document.getElementById('advanced-icon');
     const resetParamsButton = document.getElementById('reset-params');
-    const logOutput = document.getElementById('log-output');
     const cropNLayersCheckbox = document.getElementById('crop-n-layers');
     const isStrokeCheckbox = document.getElementById('is-stroke');
 
@@ -193,6 +192,50 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Background state:', backgroundState);
     });
 
+    // 添加 cropNLayersCheckbox 的 change 事件监听器
+    cropNLayersCheckbox.addEventListener('change', () => {
+        if (!cropNLayersCheckbox.checked) {
+            // 获取对应的输入元素
+            const preColorThresholdInput = document.getElementById('pre-color-threshold');
+            const rmColorThresholdInput = document.getElementById('rm-color-threshold');
+            const predIouThreshInput = document.getElementById('pred-iou-thresh');
+            const stabilityScoreThreshInput = document.getElementById('stability-score-thresh');
+
+            // 设置对应的值
+            preColorThresholdInput.value = 0;
+            rmColorThresholdInput.value = 0;
+            predIouThreshInput.value = 0.85;
+            stabilityScoreThreshInput.value = 0.93;
+
+            // 更新显示值
+            document.getElementById('pre-color-threshold-value').textContent = 0;
+            document.getElementById('rm-color-threshold-value').textContent = 0;
+            document.getElementById('pred-iou-thresh-value').textContent = 0.85;
+            document.getElementById('stability-score-thresh-value').textContent = 0.93;
+        } else {
+            // 恢复默认值
+            const preColorThresholdSlider = sliders.find(slider => slider.id === 'pre-color-threshold');
+            const rmColorThresholdSlider = sliders.find(slider => slider.id === 'rm-color-threshold');
+            const predIouThreshSlider = sliders.find(slider => slider.id === 'pred-iou-thresh');
+            const stabilityScoreThreshSlider = sliders.find(slider => slider.id === 'stability-score-thresh');
+
+            const preColorThresholdInput = document.getElementById('pre-color-threshold');
+            const rmColorThresholdInput = document.getElementById('rm-color-threshold');
+            const predIouThreshInput = document.getElementById('pred-iou-thresh');
+            const stabilityScoreThreshInput = document.getElementById('stability-score-thresh');
+
+            preColorThresholdInput.value = preColorThresholdSlider.default;
+            rmColorThresholdInput.value = rmColorThresholdSlider.default;
+            predIouThreshInput.value = predIouThreshSlider.default;
+            stabilityScoreThreshInput.value = stabilityScoreThreshSlider.default;
+
+            document.getElementById('pre-color-threshold-value').textContent = preColorThresholdSlider.default;
+            document.getElementById('rm-color-threshold-value').textContent = rmColorThresholdSlider.default;
+            document.getElementById('pred-iou-thresh-value').textContent = predIouThreshSlider.default;
+            document.getElementById('stability-score-thresh-value').textContent = stabilityScoreThreshSlider.default;
+        }
+    });
+
     // 下载 SVG
     downloadSvgButton.addEventListener('click', () => {
         if (!svgContent) return;
@@ -260,33 +303,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // WebSocket 日志
-    const ws = new WebSocket(`ws://${window.location.host}/ws/logs`);
-    ws.onopen = () => {
-        console.log('WebSocket connected');
-        logOutput.textContent = 'Connected to log stream.\n';
-    };
-    ws.onmessage = (event) => {
-        const message = event.data;
-        if (message !== "Heartbeat" && !message.includes("INFO -")) {
-            console.log('Received output:', message);
-            logOutput.textContent += `${message}\n`;
-            logOutput.scrollTop = logOutput.scrollHeight;
-        }
-    };
-    ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        logOutput.textContent += 'Error connecting to log stream.\n';
-    };
-    ws.onclose = () => {
-        console.log('WebSocket closed');
-        logOutput.textContent += 'Log stream closed.\n';
-    };
-
     // 处理图片
-    processButton.addEventListener('click', async () => {
+    const handleProcess = async () => {
         console.log('Process button clicked');
-        logOutput.textContent = '';
         if (!uploadedFile) return;
 
         progressContainer.classList.remove('hidden');
@@ -331,6 +350,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             completeProgress();
 
+            // 显示 log_info 到控制台
+            if (result.log_info) {
+                console.log("处理完成，输出目录：", result.log_info.output_directory);
+                console.log("===========================================");
+                console.log(`target_size: ${result.log_info.target_size}, pred_iou_thresh: ${result.log_info.pred_iou_thresh}, stability_score_thresh: ${result.log_info.stability_score_thresh}`);
+                console.log(`crop_n_layers: ${result.log_info.crop_n_layers}, min_area: ${result.log_info.min_area}, pre_color_threshold: ${result.log_info.pre_color_threshold}`);
+                console.log(`line_threshold: ${result.log_info.line_threshold}, bzer_max_error: ${result.log_info.bzer_max_error}, learning_rate: ${result.log_info.learning_rate}`);
+                console.log(`is_stroke: ${result.log_info.is_stroke}, num_iters: ${result.log_info.num_iters}, rm_color_threshold: ${result.log_info.rm_color_threshold}`);
+                console.log(`Time Consuming: ${result.log_info.time_consuming}`);
+                console.log(`Shapes: ${result.log_info.shapes}`);
+                console.log(`MES Loss: ${result.log_info.mes_loss}`);
+                console.log("===========================================");
+            }
+
+            // 处理结果
             handleProcessResult({
                 svg: await fetch(result.svg_url).then(res => res.text()),
                 animationUrl: result.gif_url
@@ -339,9 +373,15 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Processing failed:', error);
             progressStatus.textContent = 'Processing failed. Please try again.';
             progressBar.style.width = '0%';
+            progressPercentage.textContent = '0%';
+        } finally {
             processButton.disabled = false;
         }
-    });
+    };
+
+    // 确保事件只绑定一次
+    processButton.removeEventListener('click', handleProcess);
+    processButton.addEventListener('click', handleProcess);
 
     // 处理结果
     function handleProcessResult({ svg, animationUrl }) {
@@ -354,7 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
         gifUrl = animationUrl;  // 保存 GIF URL
 
         progressContainer.classList.add('hidden');
-        processButton.disabled = false;
     }
 
     // 初始化 Lucide 图标
@@ -377,53 +416,4 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('theme', 'dark');
         }
     });
-
-    function createLogWebSocket() {
-        let ws;
-        let heartbeatInterval;
-        const reconnectDelay = 5000; // 重连间隔 5 秒
-
-        function connect() {
-            ws = new WebSocket(`ws://${window.location.host}/ws/logs`);
-
-            ws.onopen = () => {
-                console.log('✅ WebSocket connected');
-                logOutput.textContent = 'Connected to log stream.\n';
-
-                // 启动心跳：客户端每 10 秒发一次 ping
-                heartbeatInterval = setInterval(() => {
-                    if (ws.readyState === WebSocket.OPEN) {
-                        ws.send('ping');
-                    }
-                }, 10000);
-            };
-
-            ws.onmessage = (event) => {
-                const message = event.data;
-                // 过滤掉心跳和不重要的日志
-                if (message !== "Heartbeat" && !message.includes("INFO -")) {
-                    console.log('🟢 Log:', message);
-                    logOutput.textContent += `${message}\n`;
-                    logOutput.scrollTop = logOutput.scrollHeight;
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error('❌ WebSocket error:', error);
-                logOutput.textContent += 'Error connecting to log stream.\n';
-                ws.close(); // 出错后触发 onclose
-            };
-
-            ws.onclose = () => {
-                console.warn('⚠️ WebSocket closed. Reconnecting in 5s...');
-                logOutput.textContent += 'Log stream closed. Reconnecting...\n';
-                clearInterval(heartbeatInterval);
-                setTimeout(connect, reconnectDelay); // 自动重连
-            };
-        }
-
-        connect(); // 初始连接
-    }
-    createLogWebSocket(); // 创建 WebSocket 连接    
-
 });

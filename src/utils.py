@@ -6,7 +6,6 @@ from scipy.optimize import least_squares
 from sklearn.cluster import KMeans
 import torch
 from PIL import Image
-from torchvision.transforms import ToTensor
 
 def load_and_resize(image_path: str, target_size: int = 512):
     """
@@ -218,7 +217,7 @@ def mask_color_Kmeans(image, mask, n_clusters=1, threshold=0.9):
     total_pixels = image.shape[0] * image.shape[1]
     mask_ratio = len(masked_pixels) / total_pixels
     
-    # 如果 mask 占比超过阈值，增加聚类数量
+    # 如果 mask 占比超过阈值，判定为背景
     if mask_ratio > threshold:
         return (255, 255, 255)  
     

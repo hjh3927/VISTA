@@ -7,7 +7,6 @@ import pydiffvg
 from PIL import Image
 from utils import color_similarity, is_mask_included, mask_color_Kmeans, mask_to_path
 
-
 def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_image, frames, out_svg_path, max_error=1.0, line_threshold=1.0, is_stroke=True,):
     """
     根据预处理后的 mask 生成初始 SVG 每个 mask 对应一个路径，赋予颜色，
@@ -92,7 +91,7 @@ def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_i
 
 
 
-def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frames, index_mask_dict, learning_rate=0.1, num_iters=1000,
+def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frames, index_mask_dict, Points_lr=0.1, num_iters=1000,
                  early_stopping_patience=10, early_stopping_delta=5e-5, is_stroke=True, rm_color_threshold=0.1):
     """
     优化 SVG，通过对路径点、颜色、描边宽度和描边颜色参数的反向传播更新，
@@ -116,12 +115,12 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frame
     """
     st = time.time()
     print("开始 SVG 优化...")
-
+    result_path = os.path.dirname(svg_out_path)
     # 准备目标图像
     image_target = torch.from_numpy(target_image).float() / 255.0
     image_target = image_target.to(device)
     canvas_height, canvas_width = target_image.shape[0], target_image.shape[1]
-    pydiffvg.save_svg(os.path.join(svg_out_path, f'init.svg'), canvas_width, canvas_height, shapes, shape_groups)
+    pydiffvg.save_svg(os.path.join(result_path, f'init.svg'), canvas_width, canvas_height, shapes, shape_groups)
 
     # 初始化优化变量
     points_vars = []
@@ -149,14 +148,20 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frame
             group.stroke_color.requires_grad = True
             stroke_color_var.append(group.stroke_color)
 
-    # 创建优化器，根据is_stroke选择优化参数
-    optim_params = points_vars + color_vars
+    # 设置参数组（假设这些变量已经正确初始化）
+    optim_params = [
+        {'params': points_vars, 'lr': Points_lr},
+        {'params': color_vars, 'lr': 0.01}
+    ]
     if is_stroke:
-        optim_params += stroke_width_vars + stroke_color_var
-    optim = torch.optim.Adam(optim_params, lr=learning_rate)
+        optim_params += [
+            {'params': stroke_width_vars, 'lr': 0.01},
+            {'params': stroke_color_var, 'lr': 0.01}
+        ]
+    optimizer = torch.optim.Adam(optim_params, betas=(0.9, 0.9), eps=1e-6)
 
     # 使用ReduceLROnPlateau调度器
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, mode='min', factor=0.6, patience=10)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.6, patience=10)
 
     render = pydiffvg.RenderFunction.apply
     best_loss = float('inf')
@@ -164,7 +169,7 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frame
 
     # 优化循环
     for iter in range(num_iters):
-        optim.zero_grad()
+        optimizer.zero_grad()
         scene_args = pydiffvg.RenderFunction.serialize_scene(canvas_width, canvas_height, shapes, shape_groups)
         img_render = render(canvas_width, canvas_height, 2, 2, iter, None, *scene_args)
         img_render = img_render[:, :, :3].to(device)
@@ -172,7 +177,7 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frame
 
         loss = mse_loss
         loss.backward()
-        optim.step()
+        optimizer.step()
         scheduler.step(loss)
 
         # 早停逻辑
@@ -185,7 +190,7 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frame
 
         # 每10次迭代保存中间结果
         # if iter % 10 == 0:
-        current_lr = optim.param_groups[0]['lr']
+        current_lr = optimizer.param_groups[0]['lr']
         print(f"迭代 {iter}, Loss: {current_loss:.4f}, 当前学习率: {current_lr:.2f}")
         pydiffvg.save_svg(os.path.join(svg_out_path, f'iter_{iter}.svg'), canvas_width, canvas_height, shapes, shape_groups)
         frame = (img_render.detach().cpu().numpy() * 255).astype(np.uint8)
@@ -231,11 +236,11 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frame
         shape.shape_ids = torch.tensor([i])
 
     # 保存最终SVG和GIF
-    svg_path = os.path.join(svg_out_path, 'final.svg')
+    svg_path = os.path.join(result_path, 'final.svg')
     pydiffvg.save_svg(svg_path, canvas_width, canvas_height, shapes, shape_groups)
     frame = (img_render.detach().cpu().numpy() * 255).astype(np.uint8)
     frames.append(frame)
-    gif_path = os.path.join(svg_out_path, 'animation.gif')
+    gif_path = os.path.join(result_path, 'animation.gif')
     imageio.mimsave(gif_path, frames, duration=15)
 
     print(f"SVG 优化耗时--------------->: {time.time()-st:.2f} s")

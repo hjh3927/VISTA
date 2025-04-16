@@ -142,10 +142,10 @@
                             <span id="min-area-value"
                                 class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">10</span>
                         </div>
-                        <input type="range" id="min-area" min="3" max="200" step="1" value="10"
+                        <input type="range" id="min-area" min="5" max="200" step="1" value="10"
                             class="w-full h-2 rounded-lg appearance-none bg-neutral-200 dark:bg-neutral-700 slider-thumb">
                         <div class="flex justify-between text-xs text-neutral-500 mt-1">
-                            <span>3</span>
+                            <span>5</span>
                             <span>200</span>
                         </div>
                     </div>
@@ -211,7 +211,7 @@
                         <!-- Learning Rate -->
                         <div>
                             <div class="flex justify-between items-center mb-1">
-                                <label for="learning-rate" class="text-sm font-medium">Learning Rate</label>
+                                <label for="learning-rate" class="text-sm font-medium">Points Learning Rate</label>
                                 <span id="learning-rate-value"
                                     class="text-xs font-medium bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">0.10</span>
                             </div>
@@ -354,19 +354,6 @@
                         class="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden bg-white dark:bg-black min-h-[200px] flex items-center justify-center">
                         <img id="animation-preview" src="" alt="Animation" class="max-w-full max-h-[300px]">
                     </div>
-                </div>
-
-                <!-- Processing Log -->
-                <div id="log-container"
-                    class="bg-white dark:bg-[#1f1f23] rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 p-5 mt-4 h-80 overflow-y-auto">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-lg font-medium flex items-center">
-                            <i data-lucide="terminal" class="w-5 h-5 mr-2"></i>
-                            Processing Log
-                        </h2>
-                    </div>
-                    <pre id="log-output"
-                        class="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap"></pre>
                 </div>
             </div>
         </section>

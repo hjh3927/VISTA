@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import cv2
@@ -63,15 +64,43 @@ def img_to_svg(image_path, target_size, pred_iou_thresh, stability_score_thresh,
     shapes, shape_groups, frames, index_mask_dict = generate_init_svg(shapes, shape_groups, DEVICE, pre_mask_path_list, target_image, frames, out_svg_path=INIT_SVG_PATH, max_error=bzer_max_error, line_threshold=line_threshold, is_stroke=is_stroke)
     
     # 优化 SVG
-    svg_path, gif_path, shapes, shape_groups, current_loss = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, index_mask_dict, is_stroke=is_stroke, learning_rate=learning_rate, num_iters=num_iters, rm_color_threshold=rm_color_threshold)
-    
+    svg_path, gif_path, shapes, shape_groups, current_loss = svg_optimize(shapes, shape_groups, target_image, DEVICE, OPTIM_SVG_PATH, frames, index_mask_dict, is_stroke=is_stroke, Points_lr=learning_rate, num_iters=num_iters, rm_color_threshold=rm_color_threshold)
+    all_time = time.time()-st
+    shapes_count = len(shapes)
     print(f"处理完成，输出目录：{OUT_PATH}")
-
     print(f"===========================================")
-    print(f'target_size : {target_size}, pred_iou_thresh : {pred_iou_thresh}, stability_score_thresh : {stability_score_thresh}, crop_n_layers : {crop_n_layers}, min_area :{min_area}, pre_color_threshold : {pre_color_threshold}')
-    print(f'line_threshold : {line_threshold}, bzer_max_error : {bzer_max_error}, learning_rate : {learning_rate}, is_stroke : {is_stroke}, num_iters : {num_iters}, rm_color_threshold : {rm_color_threshold}')
-    print(f'Time Consuming: {time.time()-st:.2f} s')
-    print(f'Shapes: {len(shapes)}')
+    print(f'Time Consuming: {all_time:.2f} s')
+    print(f'Shapes: {shapes_count}')
     print(f"MES Loss: {current_loss:.4f}")
     print(f"===========================================")
-    return svg_path, gif_path
+
+    # 打包信息成 JSON 格式并保存
+    result_info = {
+        "output_directory": OUT_PATH,
+        "target_size": target_size,
+        "pred_iou_thresh": pred_iou_thresh,
+        "stability_score_thresh": stability_score_thresh,
+        "crop_n_layers": crop_n_layers,
+        "min_area": min_area,
+        "pre_color_threshold": pre_color_threshold,
+        "line_threshold": line_threshold,
+        "bzer_max_error": bzer_max_error,
+        "learning_rate": learning_rate,
+        "is_stroke": is_stroke,
+        "num_iters": num_iters,
+        "rm_color_threshold": rm_color_threshold,
+        "time_consuming": all_time,
+        "shapes": shapes_count,
+        "mes_loss": current_loss
+    }
+
+    # 保存到 ./temp_outputs/result.json
+    result_file_path = os.path.join(OUT_PATH, 'result.json')
+    try:
+        with open(result_file_path, 'w', encoding='utf-8') as f:
+            json.dump(result_info, f, indent=4, ensure_ascii=False)
+        print(f"JSON result saved to {result_file_path}")
+    except Exception as e:
+        print(f"Failed to save JSON result: {str(e)}")
+
+    return svg_path, gif_path, OUT_PATH, all_time, shapes_count, current_loss
