@@ -2,13 +2,13 @@
 
 ##Overview
 
-![](D:\CollegeStudy\大四下\毕设\data\set\pipeline.jpg)
+![](assets/pipeline.jpg)
 
-![](D:\CollegeStudy\大四下\毕设\data\set\final_compare.png)
+![](assets/final_compare.png)
 
-![](D:\CollegeStudy\大四下\毕设\data\set\path_complex.png)
+![](assets/path_complex.png)
 
-![](VISTA/experiment_result/VISTA_result/complex_21_560d98cc/animation.gif)
+![](assets/animation.gif)
 
 
 
