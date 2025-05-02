@@ -7,7 +7,7 @@ import pydiffvg
 from PIL import Image
 from utils import color_similarity, is_mask_included, mask_color_Kmeans, mask_to_path
 
-def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_image, frames, out_svg_path, max_error=1.0, line_threshold=1.0, is_stroke=True,):
+def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_image, frames, out_svg_path, max_error=1.0, line_threshold=1.0, is_stroke=False,):
     """
     根据预处理后的 mask 生成初始 SVG 每个 mask 对应一个路径，赋予颜色，
     并在初始化过程中生成渲染帧，存入 frames 列表中（便于生成动图）。
@@ -92,7 +92,7 @@ def generate_init_svg(shapes, shape_groups, device, pre_mask_path_list, target_i
 
 
 def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frames, index_mask_dict, Points_lr=0.1, num_iters=1000,
-                 early_stopping_patience=10, early_stopping_delta=5e-5, is_stroke=True, rm_color_threshold=0.1):
+                 early_stopping_patience=10, early_stopping_delta=5e-5, is_stroke=False, rm_color_threshold=0.01):
     """
     优化 SVG，通过对路径点、颜色、描边宽度和描边颜色参数的反向传播更新，
     最小化与目标图像的误差。支持早停策略和动态调整学习率。
@@ -189,10 +189,10 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frame
             no_improve_count += 1
 
         # 每10次迭代保存中间结果
-        # if iter % 10 == 0:
-        current_lr = optimizer.param_groups[0]['lr']
-        print(f"迭代 {iter}, Loss: {current_loss:.4f}, 当前学习率: {current_lr:.2f}")
-        pydiffvg.save_svg(os.path.join(svg_out_path, f'iter_{iter}.svg'), canvas_width, canvas_height, shapes, shape_groups)
+        if iter % 5 == 0:
+            current_lr = optimizer.param_groups[0]['lr']
+            print(f"迭代 {iter}, Loss: {current_loss:.4f}, 当前学习率: {current_lr:.2f}")
+            pydiffvg.save_svg(os.path.join(svg_out_path, f'iter_{iter}.svg'), canvas_width, canvas_height, shapes, shape_groups)
         frame = (img_render.detach().cpu().numpy() * 255).astype(np.uint8)
         frames.append(frame)
 
@@ -201,47 +201,55 @@ def svg_optimize(shapes, shape_groups, target_image, device, svg_out_path, frame
             pydiffvg.save_svg(os.path.join(svg_out_path, f'op_final.svg'), canvas_width, canvas_height, shapes, shape_groups)
             break
 
-    to_remove = []
-    print("移除多余 path ...")
-    cnt = 0
-    # 从后往前遍历 shapes 和 shape_groups，避免删除元素时修改索引
-    lens = len(shape_groups)
-    for i in range(lens - 1, lens//2, -1):  # 倒序遍历
-        current_mask = index_mask_dict.get(i)
-        if current_mask is not None:
-            # 获取当前 mask 的颜色
-            current_color = shape_groups[i].fill_color[:3].cpu()  # 获取该 shape 的颜色
-            
-            # 如果颜色相似且面积小于阈值，标记该shape和对应的mask为移除
-            for j, other_group in enumerate(shape_groups):
-                if i != j:
-                    existing_color = other_group.fill_color[:3].cpu()  # 获取已有路径的颜色
-                    if color_similarity(existing_color, current_color, device) < rm_color_threshold:
-                        existing_mask = index_mask_dict.get(j)
-                        if existing_mask is not None and is_mask_included(current_mask, existing_mask):
-                            cnt += 1
-                            print(f"移除第 {i} 个 shape，因为它的颜色与已有 shape 相似且被包含")
-                            to_remove.append(i)
-                            break
+    if rm_color_threshold > 0.0 : 
+        to_remove = []
+        print("移除多余 path ...")
+        cnt = 0
+        # 从后往前遍历 shapes 和 shape_groups，避免删除元素时修改索引
+        lens = len(shape_groups)
+        for i in range(lens - 1, lens//2, -1):  # 倒序遍历
+            current_mask = index_mask_dict.get(i)
+            if current_mask is not None:
+                # 获取当前 mask 的颜色
+                current_color = shape_groups[i].fill_color[:3].cpu()  # 获取该 shape 的颜色
+                
+                # 如果颜色相似且面积小于阈值，标记该shape和对应的mask为移除
+                for j, other_group in enumerate(shape_groups):
+                    if i != j:
+                        existing_color = other_group.fill_color[:3].cpu()  # 获取已有路径的颜色
+                        if color_similarity(existing_color, current_color, device) < rm_color_threshold:
+                            existing_mask = index_mask_dict.get(j)
+                            if existing_mask is not None and is_mask_included(current_mask, existing_mask):
+                                cnt += 1
+                                print(f"移除第 {i} 个 shape，因为它的颜色与已有 shape 相似且被包含")
+                                to_remove.append(i)
+                                break
 
-    print(f"共移除 {cnt} 个 path")
+        print(f"共移除 {cnt} 个 path")
 
-    # 执行移除操作
-    for idx in sorted(to_remove, reverse=True):
-        del shapes[idx]
-        del shape_groups[idx]
-        del index_mask_dict[idx]
-    # 重新设置 shape_ids
-    for i, shape in enumerate(shape_groups) :
-        shape.shape_ids = torch.tensor([i])
+        # 执行移除操作
+        for idx in sorted(to_remove, reverse=True):
+            del shapes[idx]
+            del shape_groups[idx]
+            del index_mask_dict[idx]
+        # 重新设置 shape_ids
+        for i, shape in enumerate(shape_groups) :
+            shape.shape_ids = torch.tensor([i])
+    
+        scene_args = pydiffvg.RenderFunction.serialize_scene(canvas_width, canvas_height, shapes, shape_groups)
+        img_render = render(canvas_width, canvas_height, 2, 2, iter, None, *scene_args)
+        img_render = img_render[:, :, :3].to(device)
+        mse_loss = torch.mean((img_render - image_target) ** 2)
+        final_loss = mse_loss.item()
 
+    final_loss = current_loss
     # 保存最终SVG和GIF
     svg_path = os.path.join(result_path, 'final.svg')
     pydiffvg.save_svg(svg_path, canvas_width, canvas_height, shapes, shape_groups)
     frame = (img_render.detach().cpu().numpy() * 255).astype(np.uint8)
     frames.append(frame)
     gif_path = os.path.join(result_path, 'animation.gif')
-    imageio.mimsave(gif_path, frames, duration=15)
+    imageio.mimsave(gif_path, frames, duration=15, loop=1)
 
     print(f"SVG 优化耗时--------------->: {time.time()-st:.2f} s")
-    return svg_path, gif_path, shapes, shape_groups, current_loss
+    return svg_path, gif_path, shapes, shape_groups, final_loss

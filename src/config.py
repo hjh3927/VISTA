@@ -1,15 +1,16 @@
+import uuid
 import torch
 import os
-import time
 
 # 项目路径
-PROJECT_PATH = '/home/hjh/repository/VISTA'
+PROJECT_PATH = '/home/hjh/repository/VISTA/VISTA'
 
 # 数据和输出路径
-FILE_NAME = "9.jpg"
-DATA_PATH = os.path.join(PROJECT_PATH, "dataset/figures", FILE_NAME)
-T = time.time()
-OUT_PATH = os.path.join(PROJECT_PATH, "out", f"{FILE_NAME}-{int(T)%20}")
+FILE_NAME = "complex_5.png"
+DATA_PATH = os.path.join(PROJECT_PATH, "dataset/", FILE_NAME)
+unique_id = str(uuid.uuid4())[:8]
+OUT_PATH = os.path.join(PROJECT_PATH, "out", f"{FILE_NAME}-{unique_id}")
+TEMP_OUTPUTS_DIR = os.path.join(PROJECT_PATH, "temp_outputs")
 
 # 输出子目录
 ORIGIN_MASKS_PATH = os.path.join(OUT_PATH, "origin_masks")
@@ -25,14 +26,14 @@ DEVICE = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
 #超参数配置
 TARGET_SIZE = 512
-PREDICTION_IOU_THRESHOLD = 0.80
-STABILITY_SCORE_THRESHOLD = 0.90
+PREDICTION_IOU_THRESHOLD = 0.85
+STABILITY_SCORE_THRESHOLD = 0.93
 CROP_N_LAYERS = 1
-PRE_COLOR_THRESHOLD = 0.01
-MIN_AREA = 10
+PRE_COLOR_THRESHOLD = 0.0
+MIN_AREA = 20
 BEZIER_MAX_ERROR = 1.0
 LINE_THRESHOLD = 1.0
 LEARNING_RATE = 0.1
 NUM_ITERS = 1000
 IS_STROKE = False
-RM_COLOR_THRESHOLD = 0.1
+RM_COLOR_THRESHOLD = 0.01

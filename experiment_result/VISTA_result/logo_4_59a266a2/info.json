@@ -1,0 +1,19 @@
+{
+    "output_directory": "/home/hjh/repository/VISTA/temp_outputs/logo_4_59a266a2",
+    "target_size": 512,
+    "pred_iou_thresh": 0.8,
+    "stability_score_thresh": 0.9,
+    "crop_n_layers": 1,
+    "min_area": 10,
+    "pre_color_threshold": 0.01,
+    "line_threshold": 1.0,
+    "bzer_max_error": 1.0,
+    "learning_rate": 0.1,
+    "is_stroke": false,
+    "num_iters": 1000,
+    "rm_color_threshold": 0.1,
+    "time_consuming": 16.8897,
+    "path_point_nums": 193,
+    "shapes": 13,
+    "mes_loss": 0.0006
+}

@@ -1,0 +1,26 @@
+advanced_logging: false
+canvas_height: -1
+canvas_width: -1
+clip_config_file: test/config_init.npy
+early_stopping: true
+experiment_name: ''
+geometric_loss_lamda_geometric_punish: 10.0
+geometric_loss_type: none
+init_shape: circle
+init_type: random
+input_svg: null
+l1_and_clip_alpha: 1.0
+lambda_geometric: 0.01
+num_epochs: 1
+num_iter:
+- 1000
+num_paths: 8
+ranking_clip_config_file: test/config_init.npy
+ranking_l1_and_clip_alpha: 1.0
+ranking_loss_type: mse
+recons_loss_type: mse
+results_dir: results
+sample_beta: 0.005
+sample_importance: false
+target: dataset/emoji_4.png
+text_prompt: null

@@ -1,0 +1,19 @@
+{
+    "output_directory": "/home/hjh/repository/VISTA/temp_outputs/complex_16_96b6996f",
+    "target_size": 512,
+    "pred_iou_thresh": 0.85,
+    "stability_score_thresh": 0.93,
+    "crop_n_layers": 1,
+    "min_area": 20,
+    "pre_color_threshold": 0.01,
+    "line_threshold": 1.0,
+    "bzer_max_error": 2.0,
+    "learning_rate": 0.1,
+    "is_stroke": false,
+    "num_iters": 1000,
+    "rm_color_threshold": 0.05,
+    "time_consuming": 60.6274,
+    "path_point_nums": 1283,
+    "shapes": 102,
+    "mes_loss": 0.0018
+}

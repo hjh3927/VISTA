@@ -7,7 +7,7 @@ import torch
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 from utils import color_similarity, find_background_seed, is_mask_included, mask_color_Kmeans
 
-def sam(image, masks_path, pred_iou_thresh=0.80, stability_score_thresh=0.90, crop_n_layers=1, model_type='vit_h', checkpoint_path='', device='cpu'):
+def sam(image, masks_path, pred_iou_thresh=0.85, stability_score_thresh=0.93, crop_n_layers=1, model_type='vit_h', checkpoint_path='', device='cpu'):
     """
     利用 SAM 模型生成掩码，并保存到 masks_path，返回生成的文件路径列表
     """
@@ -20,7 +20,7 @@ def sam(image, masks_path, pred_iou_thresh=0.80, stability_score_thresh=0.90, cr
         pred_iou_thresh=pred_iou_thresh,           # 略微降低 IoU 阈值，防止过多小碎片
         stability_score_thresh=stability_score_thresh,    # 提高稳定性阈值，过滤低质量掩码
         crop_n_layers=crop_n_layers,                # 提高裁剪层数，使得整体结构更连贯
-        min_mask_region_area=10         # 增大最小区域面积，去除极小碎片
+        min_mask_region_area=5         # 增大最小区域面积，去除极小碎片
     )
 
     st = time.time()
@@ -55,7 +55,7 @@ def sam(image, masks_path, pred_iou_thresh=0.80, stability_score_thresh=0.90, cr
     return mask_path_list
 
 
-def preprocessing_mask(mask_img_list, output_path, target_image, min_area=100, iou_threshold=0.8, pre_color_threshold=0.08, device='cpu'):
+def preprocessing_mask(mask_img_list, output_path, target_image, min_area=20, iou_threshold=0.8, pre_color_threshold=0.0, device='cpu'):
     """
     预处理二值掩码：
       1. 分割连通区域并保存有效的掩码。
@@ -122,16 +122,17 @@ def preprocessing_mask(mask_img_list, output_path, target_image, min_area=100, i
                     is_duplicate = True
                     print(f"掩码 {count}_{i} 与现有掩码重复，交并比为 {max_iou:.4f}，被跳过")
 
-            # 检查颜色相似性并包含
-            if not is_duplicate:
-                for existing_mask_info in index_mask_dict.values():
-                    existing_color = existing_mask_info["color"].cpu()
-                    if color_similarity(existing_color, current_color, device) < pre_color_threshold:
-                        existing_mask = existing_mask_info["mask"]
-                        if is_mask_included(single_region, existing_mask, iou_threshold):
-                            print(f"跳过第 {count}_{i} 个掩码，因为它与已有掩码颜色相似并且被包含")
-                            is_duplicate = True
-                            break
+            if pre_color_threshold > 0 :
+                # 检查颜色相似性并包含
+                if not is_duplicate:
+                    for existing_mask_info in index_mask_dict.values():
+                        existing_color = existing_mask_info["color"].cpu()
+                        if color_similarity(existing_color, current_color, device) < pre_color_threshold:
+                            existing_mask = existing_mask_info["mask"]
+                            if is_mask_included(single_region, existing_mask, iou_threshold):
+                                print(f"跳过第 {count}_{i} 个掩码，因为它与已有掩码颜色相似并且被包含")
+                                is_duplicate = True
+                                break
 
             if not is_duplicate:
                 # 存储当前掩码信息

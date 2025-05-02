@@ -1,4 +1,5 @@
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
+import uuid
+from fastapi import FastAPI, File, HTTPException, UploadFile, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import logging
@@ -7,6 +8,8 @@ import os
 import shutil
 import tempfile
 import time
+
+from config import TEMP_OUTPUTS_DIR
 
 app = FastAPI()
 
@@ -24,9 +27,9 @@ logger.addHandler(console_handler)
 logger.propagate = False  # 阻止日志传播到根日志记录器
 
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "../static")), name="static")
-if not os.path.exists("temp_outputs"):
-    os.makedirs("temp_outputs")
-app.mount("/temp_outputs", StaticFiles(directory="temp_outputs"), name="temp_outputs")
+if not os.path.exists(TEMP_OUTPUTS_DIR):
+    os.makedirs(TEMP_OUTPUTS_DIR)
+app.mount("/temp_outputs", StaticFiles(directory=TEMP_OUTPUTS_DIR), name="temp_outputs")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -35,9 +38,10 @@ async def read_root():
 
 async def run_algorithm(temp_img_path, target_size, pred_iou_thresh, stability_score_thresh, crop_n_layers, min_area, pre_color_threshold, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters, rm_color_threshold):
     try:
-        svg_path, gif_path, output,  all_time, shapes_count, mes_loss = img_to_svg(temp_img_path, target_size, pred_iou_thresh, stability_score_thresh, crop_n_layers, min_area, pre_color_threshold, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters, rm_color_threshold)
-        svg_url = svg_path.replace(os.path.abspath("temp_outputs"), "/temp_outputs")
-        gif_url = gif_path.replace(os.path.abspath("temp_outputs"), "/temp_outputs")
+        svg_path, gif_path, output,  all_time, shapes_count, mes_loss, path_point_nums = img_to_svg(temp_img_path, target_size, pred_iou_thresh, stability_score_thresh, crop_n_layers, min_area, pre_color_threshold, line_threshold, bzer_max_error, learning_rate, is_stroke, num_iters, rm_color_threshold)
+        svg_url = svg_path.replace(TEMP_OUTPUTS_DIR, "/temp_outputs")
+        gif_url = gif_path.replace(TEMP_OUTPUTS_DIR, "/temp_outputs")
+        
         # 整理需要返回的信息
         log_info = {
             "output_directory": output,  # 输出目录
@@ -54,6 +58,7 @@ async def run_algorithm(temp_img_path, target_size, pred_iou_thresh, stability_s
             "num_iters": num_iters,
             "rm_color_threshold": rm_color_threshold,
             "time_consuming": f"{all_time:.2f} s",  # 处理耗时
+            "path_point_nums": path_point_nums,  # 路径点数量
             "shapes": shapes_count,  # 形状数量
             "mes_loss": f"{mes_loss:.4f}"  # 损失值
         }
@@ -82,10 +87,22 @@ async def process_image(
     logger.info(f"Received file: {file.filename}")
     logger.info("Starting image processing...")
 
+    # 获取上传文件名（不含扩展名）并添加唯一标识
+    original_filename = os.path.splitext(file.filename)[0]  
+    unique_id = str(uuid.uuid4())[:8]  # 短唯一标识，避免冲突
+    base_filename = f"{original_filename}_{unique_id}"  
+
+    # 创建临时目录
+    temp_dir = tempfile.gettempdir()
+    temp_img_path = os.path.join(temp_dir, f"{base_filename}.jpg")
+
     # 保存上传图片到临时文件
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_img:
-        shutil.copyfileobj(file.file, temp_img)
-        temp_img_path = temp_img.name
+    try:
+        with open(temp_img_path, "wb") as temp_img:
+            shutil.copyfileobj(file.file, temp_img)
+    except Exception as e:
+        logger.error(f"Failed to save temporary file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
     # 调用算法，直接输出到控制台
     try:

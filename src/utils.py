@@ -1,3 +1,4 @@
+import json
 import os
 import cv2
 import numpy as np
@@ -32,15 +33,14 @@ def load_and_resize(image_path: str, target_size: int = 512):
     target_size = (int(w * scale), int(h * scale))
     resized = image.resize(target_size, Image.Resampling.LANCZOS)
 
-    return np.array(resized)
+    return resized
 
   
-def save_target_image(image_array, out_dir, file_name):
-    img_pil = Image.fromarray(image_array)
+def save_target_image(image, out_dir, file_name):
     out_file = os.path.join(out_dir, file_name)
     if not os.path.splitext(out_file)[1]:  # 检查是否有扩展名
         out_file += '.jpg'  # 如果没有，添加默认扩展名
-    img_pil.save(out_file)
+    image.save(out_file)
     return out_file
 
 def find_background_seed(image):
@@ -275,3 +275,114 @@ def is_mask_included(current_mask, existing_mask, inclusion_threshold=0.8):
 
     # 判断比值是否大于阈值
     return inclusion_ratio >= inclusion_threshold
+
+
+def render_svg_to_jpg(svg_path, output_jpg_path, width, height, background_color=(255, 255, 255), preserve_aspect_ratio=True):
+    """
+    Render an SVG file to a JPG image with specified width and height, scaling content to fill the canvas.
+    
+    Args:
+        svg_path (str): Path to the input SVG file.
+        output_jpg_path (str): Path to save the output JPG file.
+        width (int): Desired width of the output image in pixels.
+        height (int): Desired height of the output image in pixels.
+        background_color (tuple): RGB color for the background (default: white, (255, 255, 255)).
+        preserve_aspect_ratio (bool): If True, scale SVG content to preserve aspect ratio; if False, stretch to fill.
+    
+    Returns:
+        bool: True if rendering is successful, False otherwise.
+    """
+    try:
+        # Set device
+        pydiffvg.set_use_gpu(torch.cuda.is_available())
+        
+        # Load SVG file
+        canvas_width, canvas_height, shapes, shape_groups = pydiffvg.svg_to_scene(svg_path)
+        
+        # Calculate scaling factors
+        scale_x = width / canvas_width
+        scale_y = height / canvas_height
+        
+        if preserve_aspect_ratio:
+            # Use the smaller scale to avoid stretching
+            scale = min(scale_x, scale_y)
+            scale_x = scale
+            scale_y = scale
+            # Center the content
+            offset_x = (width - canvas_width * scale_x) / 2
+            offset_y = (height - canvas_height * scale_y) / 2
+        else:
+            # Stretch to fill the canvas
+            offset_x = 0
+            offset_y = 0
+        
+        # Scale shapes and paths
+        for shape in shapes:
+            if hasattr(shape, 'points'):
+                # Scale path points
+                shape.points[:, 0] = shape.points[:, 0] * scale_x + offset_x
+                shape.points[:, 1] = shape.points[:, 1] * scale_y + offset_y
+            if hasattr(shape, 'stroke_width'):
+                # Scale stroke width (optional)
+                shape.stroke_width *= min(scale_x, scale_y)
+        
+        # Create rendering scene with target resolution
+        scene = pydiffvg.RenderFunction.serialize_scene(
+            width, height, shapes, shape_groups
+        )
+        
+        # Initialize renderer
+        render = pydiffvg.RenderFunction.apply
+        
+        # Render SVG to tensor
+        img = render(
+            width,           # render width
+            height,          # render height
+            2,               # num_samples_x
+            2,               # num_samples_y
+            0,               # seed
+            None,            # background_image
+            *scene
+        )
+        
+        # Convert tensor to numpy array
+        img = img[:, :, :3].cpu().numpy()  # Remove alpha channel, keep RGB
+        img = (img * 255).astype(np.uint8)  # Scale to 0-255
+        
+        # Create background image
+        background = np.ones((height, width, 3), dtype=np.uint8) * np.array(background_color, dtype=np.uint8)
+        
+        # Blend image with background (handle transparency)
+        alpha = img[:, :, 3:4] / 255.0 if img.shape[-1] == 4 else np.ones((height, width, 1))
+        blended_img = (img[:, :, :3] * alpha + background * (1 - alpha)).astype(np.uint8)
+        
+        # Save as JPG
+        pil_img = Image.fromarray(blended_img)
+        pil_img.save(output_jpg_path, "JPEG", quality=95)
+        
+        print(f"Rendered SVG to JPG: {output_jpg_path}")
+        return True
+    
+    except Exception as e:
+        print(f"Error rendering SVG to JPG: {str(e)}")
+        return False  
+
+def compute_path_point_nums(shapes) :
+    cnt = 0
+    for path in  shapes :
+        cnt += len(path.points)
+    
+    return cnt
+
+def add_to_file(data_to_add, timing_file):
+    data = {}
+    # read all data that you have so far:
+    if os.path.exists(timing_file):
+        with open(timing_file, 'r') as f:
+            data = json.load(f)
+    # update dict:
+    for k in data_to_add:
+        data[k] = data_to_add[k]
+    # write dict to file:
+    with open(timing_file, 'w') as f:
+        json.dump(data, f, indent=2)
