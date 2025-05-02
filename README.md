@@ -45,6 +45,7 @@ python setup.py install
 ```
 
 ```python
+cd ..
 pip install -r requirements.txt
 ```
 
