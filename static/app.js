@@ -80,21 +80,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let backgroundState = 'grid';
 
     // 默认值初始化
-    isStrokeCheckbox.checked = true;
+    isStrokeCheckbox.checked = false;
     cropNLayersCheckbox.checked = true;
 
     // 定义滑块参数及其默认值（与后端一致）
     const sliders = [
         { id: 'target-size', valueId: 'target-size-value', default: 512 },
-        { id: 'pred-iou-thresh', valueId: 'pred-iou-thresh-value', default: 0.80 },
-        { id: 'stability-score-thresh', valueId: 'stability-score-thresh-value', default: 0.90 },
-        { id: 'min-area', valueId: 'min-area-value', default: 10 },
-        { id: 'pre-color-threshold', valueId: 'pre-color-threshold-value', default: 0.01 },
+        { id: 'pred-iou-thresh', valueId: 'pred-iou-thresh-value', default: 0.85 },
+        { id: 'stability-score-thresh', valueId: 'stability-score-thresh-value', default: 0.93 },
+        { id: 'min-area', valueId: 'min-area-value', default: 20 },
+        { id: 'pre-color-threshold', valueId: 'pre-color-threshold-value', default: 0.0 },
         { id: 'line-threshold', valueId: 'line-threshold-value', default: 1.0 },
         { id: 'bzer-max-error', valueId: 'bzer-max-error-value', default: 1.0 },
         { id: 'learning-rate', valueId: 'learning-rate-value', default: 0.10 },
         { id: 'num-iters', valueId: 'num-iters-value', default: 1000 },
-        { id: 'rm-color-threshold', valueId: 'rm-color-threshold-value', default: 0.10 }
+        { id: 'rm-color-threshold', valueId: 'rm-color-threshold-value', default: 0.01 }
     ];
 
     // 文件上传处理
@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
             inputElement.value = slider.default;
             valueElement.textContent = slider.default;
         });
-        isStrokeCheckbox.checked = true;
+        isStrokeCheckbox.checked = false;
         cropNLayersCheckbox.checked = true;
     });
 
@@ -204,14 +204,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // 设置对应的值
             preColorThresholdInput.value = 0;
             rmColorThresholdInput.value = 0;
-            predIouThreshInput.value = 0.85;
-            stabilityScoreThreshInput.value = 0.93;
+            predIouThreshInput.value = 0.88;
+            stabilityScoreThreshInput.value = 0.95;
 
             // 更新显示值
             document.getElementById('pre-color-threshold-value').textContent = 0;
             document.getElementById('rm-color-threshold-value').textContent = 0;
-            document.getElementById('pred-iou-thresh-value').textContent = 0.85;
-            document.getElementById('stability-score-thresh-value').textContent = 0.93;
+            document.getElementById('pred-iou-thresh-value').textContent = 0.88;
+            document.getElementById('stability-score-thresh-value').textContent = 0.95;
         } else {
             // 恢复默认值
             const preColorThresholdSlider = sliders.find(slider => slider.id === 'pre-color-threshold');
@@ -387,7 +387,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleProcessResult({ svg, animationUrl }) {
         initialState.classList.add('hidden');
         resultsContainer.classList.remove('hidden');
-        svgPreview.innerHTML = svg;
+
+        // 解析 SVG 内容并确保尺寸
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(svg, 'image/svg+xml');
+        const svgElement = svgDoc.documentElement;
+
+        // 如果 SVG 没有定义 width 和 height，设置默认值
+        if (!svgElement.hasAttribute('width') || !svgElement.hasAttribute('height')) {
+            svgElement.setAttribute('width', '100%');
+            svgElement.setAttribute('height', '100%');
+        }
+
+        // 清空现有内容并添加 SVG
+        svgPreview.innerHTML = '';
+        svgPreview.appendChild(svgElement);
+
         animationPreview.src = animationUrl;
 
         svgContent = svg;  // 保存 SVG 内容
