@@ -1,6 +1,6 @@
 # VISTA: Vectorization using Image Segmentation and Tuned Optimization Algorithm
 
-##Overview
+## Overview
 
 ![](assets/pipeline.jpg)
 
@@ -60,7 +60,5 @@ conda activate vista
 python vista_main.py
 ```
 
-## License
 
-This project is licensed under the MIT License - see the [LICENSE](https://grok.com/chat/LICENSE) file for details.
 
